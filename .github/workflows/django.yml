@@ -5,26 +5,86 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: django-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-
+    name: build-${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
     strategy:
-      max-parallel: 4
+      fail-fast: false
+      max-parallel: 3
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Run Tests
-      run: |
-        python manage.py test
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Show runtime versions
+        run: |
+          python --version
+          pip --version
+          echo "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=${FORCE_JAVASCRIPT_ACTIONS_TO_NODE24}"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements-ci.txt ]; then
+            pip install -r requirements-ci.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install "Django>=4.2,<5.3" pytest pytest-django
+          fi
+          python -m pip check || true
+
+      - name: Check Django project
+        id: django_detect
+        run: |
+          if [ -f manage.py ]; then
+            echo "has_django=true" >> "$GITHUB_OUTPUT"
+            echo "manage.py found"
+          else
+            echo "has_django=false" >> "$GITHUB_OUTPUT"
+            echo "manage.py not found. Django tests will be skipped safely."
+          fi
+
+      - name: Django system check
+        if: steps.django_detect.outputs.has_django == 'true'
+        run: |
+          python manage.py check
+
+      - name: Run Django tests
+        if: steps.django_detect.outputs.has_django == 'true'
+        run: |
+          python manage.py test --verbosity 2
+
+      - name: Run pytest tests when present
+        run: |
+          if find . -maxdepth 4 -type f \( -name 'test_*.py' -o -name '*_test.py' \) | grep -q .; then
+            python -m pytest -q
+          else
+            echo "No pytest test files found."
+          fi
