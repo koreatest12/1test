@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  security-events: write
 
 concurrency:
   group: django-ci-${{ github.ref }}
@@ -88,3 +90,39 @@ jobs:
           else
             echo "No pytest test files found."
           fi
+
+  codeql:
+    name: codeql-python-security
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Print CodeQL context
+        shell: bash
+        run: |
+          echo "[CodeQL] repository=${GITHUB_REPOSITORY}"
+          echo "[CodeQL] ref=${GITHUB_REF}"
+          echo "[CodeQL] sha=${GITHUB_SHA}"
+          echo "[CodeQL] language=python"
+          echo "[CodeQL] node24=${FORCE_JAVASCRIPT_ACTIONS_TO_NODE24}"
+          echo "[CodeQL] This workflow does not call external AI APIs."
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          queries: +security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:python"
