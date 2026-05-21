@@ -39,6 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    env:
+      # GitHub Actions Node.js 20 지원 종료 경고 방지용입니다.
+      # Node.js 24 런타임을 미리 강제 적용합니다.
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +54,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -61,10 +66,11 @@ jobs:
           echo "[CodeQL] ref=${GITHUB_REF}"
           echo "[CodeQL] sha=${GITHUB_SHA}"
           echo "[CodeQL] language=${{ matrix.language }}"
+          echo "[CodeQL] node24=${FORCE_JAVASCRIPT_ACTIONS_TO_NODE24}"
           echo "[CodeQL] This workflow does not call external AI APIs."
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: +security-extended,security-and-quality
@@ -73,6 +79,6 @@ jobs:
       # Java/C/C++/C# 등을 추가할 때만 별도 build 또는 autobuild 단계를 검토하십시오.
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
