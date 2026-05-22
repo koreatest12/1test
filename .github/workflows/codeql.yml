@@ -25,9 +25,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write           # AI가 생성한 가이드나 패치 파일을 저장소에 커밋/푸시하기 위해 write로 확장
+  contents: write           # AI 가상 에이전트가 리소스를 파일로 생성 후 저장소에 커밋/푸시하기 위한 권한
   actions: read
-  security-events: write    # CodeQL 결과를 SARIF로 기록하기 위해 유지
+  security-events: write    # CodeQL 결과를 저장소 보안 탭에 반영하기 위한 필수 권한
 
 concurrency:
   group: codeql-${{ github.workflow }}-${{ github.ref }}
@@ -37,11 +37,11 @@ jobs:
   analyze:
     name: "Analyze (${{ matrix.language }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 45     # AI API 호출 및 파일 생성 시간을 고려하여 타임아웃을 살짝 늘렸습니다.
+    timeout-minutes: 45
     
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      # 저장소 Secrets에 ANTHROPIC_API_KEY 또는 GEMINI_API_KEY를 등록해야 합니다.
+      # GitHub Repository -> Settings -> Secrets and variables -> Actions에 값을 등록해야 정상 정상 작동합니다.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -56,17 +56,15 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          persist-credentials: true # AI가 코드를 수정하거나 문서를 추가한 뒤 푸시할 수 있도록 true로 변경
+          persist-credentials: true
 
       - name: Print scan context
         shell: bash
         run: |
           echo "[CodeQL] repository=${GITHUB_REPOSITORY}"
           echo "[CodeQL] ref=${GITHUB_REF}"
-          echo "[CodeQL] sha=${GITHUB_SHA}"
           echo "[CodeQL] language=${{ matrix.language }}"
-          echo "[CodeQL] node24=${FORCE_JAVASCRIPT_ACTIONS_TO_NODE24}"
-          echo "[CodeQL] AI Integration Enabled: Processing with Claude/Gemini if keys are present."
+          echo "[CodeQL] AI Integration Enabled: Virtual Environment Deployment"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -78,102 +76,119 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
-          # AI 단계에서 참고할 수 있도록 CodeQL 분석 결과를 SARIF 파일(텍스트 형태의 보안 리포트)로 로컬에 남깁니다.
           upload: true
 
       # -------------------------------------------------------------------------
-      #  AI 서비스 연동 및 리소스 파일 생성 단계 (추가된 파트)
+      #  AI 가상 에이전트 격리 환경 설치 및 실행 (에러 완벽 수정본)
       # -------------------------------------------------------------------------
       
-      - name: Setup Python for AI Scripts
-        # AI API를 가볍게 호출하고 파일을 가공하기 위해 파이썬 환경을 활용합니다.
+      - name: Setup Python Runtime
+        # 기존 'python-python' 오타를 'python-version'으로 올바르게 수정했습니다.
         uses: actions/setup-python@v5
         with:
-          python-python: '3.11'
+          python-version: '3.11'
 
-      - name: Install AI SDKs
+      - name: Create Isolated Virtual Environment
+        # 글로벌 환경 오염을 완벽히 차단하기 위해 독립 가상 환경을 명시적으로 구축합니다.
         run: |
-          pip install google-genai anthropic
+          python -m venv .venv_ai_agent
+          .venv_ai_agent/bin/pip install --upgrade pip
+          .venv_ai_agent/bin/pip install google-genai anthropic
 
-      - name: Generate AI Security Reports and Code Patches
+      - name: Deploy AI Virtual Agent Code Base
+        # 프로젝트 메인 소스 트리를 더럽히지 않도록 가상환경 내부 은밀한 공간에 에이전트 엔진 코드를 빌드합니다.
         shell: bash
         run: |
-          cat << 'EOF' > ai_analysis.py
+          mkdir -p .venv_ai_agent/agent_core
+          
+          cat << 'EOF' > .venv_ai_agent/agent_core/ai_agent.py
           import os
           import json
-          from google import genai
-          from anthropic import Anthropic
 
-          # 1. 환경 변수에서 API 키 확인
-          gemini_key = os.environ.get("GEMINI_API_KEY")
-          claude_key = os.environ.get("ANTHROPIC_API_KEY")
-          
-          # 분석 타겟 코드 예시 (실제 저장소 내 주요 파일이나 CodeQL SARIF 결과를 읽어와 프롬프트에 주입할 수 있습니다)
-          # 여기서는 데모용으로 간단한 타겟 요약 정보를 구성합니다.
-          prompt_content = """
-          당신은 최고 수준의 DevSecOps AI 분석가입니다. 
-          현재 저장소의 파이썬 소스 코드에 대한 보안 진단을 수행하고 다음 리소스를 생성해 주세요.
-          1. 발견 가능한 잠재적 취약점 요약 및 조치 가이드 (Markdown 형식)
-          2. 보안 강화를 위한 추천 설정 파일 예시 (.env.example 이나 복합 설정 구조)
-          """
+          def run_agent():
+              gemini_key = os.environ.get("GEMINI_API_KEY")
+              claude_key = os.environ.get("ANTHROPIC_API_KEY")
+              
+              prompt_content = """
+              당신은 최고 수준의 DevSecOps AI 분석 에이전트입니다. 
+              현재 저장소의 파이썬 소스 코드 구조를 기반으로 아래 리소스를 생성해 주세요.
+              1. 보안 조치 핵심 가이드 (Markdown 형식)
+              2. 인프라 보안 강화를 위한 추천 가상 환경 설정 파일 예시 (.env.example 구조)
+              """
 
-          # 2. Gemini 우선 처리 (키가 존재할 경우)
-          if gemini_key:
-              print("[AI] Gemini API를 사용하여 리소스를 생성합니다...")
-              try:
-                  client = genai.Client(api_key=gemini_key)
-                  response = client.models.generate_content(
-                      model='gemini-2.5-flash',
-                      contents=prompt_content,
-                  )
-                  ai_output = response.text
-              except Exception as e:
-                  print(f"[ERROR] Gemini 호출 실패: {e}")
-                  ai_output = None
-
-          # 3. Gemini 키가 없고 Claude 키가 있다면 Claude로 대체 처리
-          elif claude_key:
-              print("[AI] Claude API를 사용하여 리소스를 생성합니다...")
-              try:
-                  client = Anthropic(api_key=claude_key)
-                  message = client.messages.create(
-                      model="claude-3-5-sonnet-latest",
-                      max_tokens=2048,
-                      messages=[{"role": "user", "content": prompt_content}]
-                  )
-                  ai_output = message.content[0].text
-              except Exception as e:
-                  print(f"[ERROR] Claude 호출 실패: {e}")
-                  ai_output = None
-          else:
-              print("[WARN] AI API 키가 설정되지 않았습니다. 단계를 건너뜁니다.")
               ai_output = None
 
-          # 4. 결과 파일 및 리소스 데이터 물리적 생성
-          if ai_output:
+              # 1. Gemini 에이전트 작동 시도
+              if gemini_key:
+                  print("[Virtual Agent] Gemini 에이전트가 분석을 개시합니다...")
+                  try:
+                      from google import genai
+                      client = genai.Client(api_key=gemini_key)
+                      response = client.models.generate_content(
+                          model='gemini-2.5-flash',
+                          contents=prompt_content,
+                      )
+                      ai_output = response.text
+                  except Exception as e:
+                      print(f"[ERROR] Gemini 에이전트 통신 실패: {e}")
+
+              # 2. Claude 에이전트 작동 시도 (Fallback)
+              elif claude_key:
+                  print("[Virtual Agent] Claude 에이전트가 분석을 개시합니다...")
+                  try:
+                      from anthropic import Anthropic
+                      client = Anthropic(api_key=claude_key)
+                      message = client.messages.create(
+                          model="claude-3-5-sonnet-latest",
+                          max_tokens=2048,
+                          messages=[{"role": "user", "content": prompt_content}]
+                      )
+                      ai_output = message.content[0].text
+                  except Exception as e:
+                      print(f"[ERROR] Claude 에이전트 통신 실패: {e}")
+              
+              # 3. API 키가 둘 다 없는 비상 상황 대처 로직 (워크플로우 중단 방지 방어 코드)
+              else:
+                  print("[WARN] GitHub Secrets에 등록된 AI API 키가 감지되지 않았습니다.")
+                  print("[WARN] 에러로 인한 전체 파이프라인 중단을 막기 위해 기본 보안 템플릿 리소스를 생성합니다.")
+                  ai_output = "### [시스템 안내]\nGitHub Secrets에 AI API 키(`GEMINI_API_KEY` 또는 `ANTHROPIC_API_KEY`)를 등록하시면, 이 영역에 실시간 AI 코드 정밀 진단 결과가 업데이트됩니다."
+
+              # 4. 물리적 리소스 데이터 및 파일 구조 자동 생성
               os.makedirs("generated/security_reports", exist_ok=True)
               
-              # 가이드 문서 파일 생성
+              # 파일 1: AI 분석 가이드라인 마크다운 문서 생성
               with open("generated/security_reports/AI_FIX_GUIDE.md", "w", encoding="utf-8") as f:
-                  f.write("# AI Generated Security Guide\n\n")
+                  f.write("# AI Virtual Agent Security Report\n\n")
                   f.write(ai_output)
-                  
-              print("[AI] 리소스 및 보안 가이드 파일 생성이 완료되었습니다: generated/security_reports/AI_FIX_GUIDE.md")
+              
+              # 파일 2: 에이전트 표준 가상환경 설정 템플릿 생성
+              with open("generated/security_reports/.env.example", "w", encoding="utf-8") as f:
+                  f.write("# Auto-generated by AI Security Agent\n")
+                  f.write("DEBUG=False\n")
+                  f.write("SECURITY_SECRETS_ROTATION_DAYS=30\n")
+                  f.write("ALLOWED_HOSTS=localhost,127.0.0.1\n")
+
+              print("[Virtual Agent] 파일 및 인프라 설정 리소스 생성이 정상 처리되었습니다.")
+
+          if __name__ == "__main__":
+              run_agent()
           EOF
-          
-          # 스크립트 실행
-          python ai_analysis.py
+
+      - name: Execute AI Virtual Agent via Venv Path
+        # 명시적 경로 지정을 통해 가상 환경 내부의 파이썬 인터프리터로 에이전트를 확실하게 트리거합니다.
+        shell: bash
+        run: |
+          .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
       - name: Commit & Push Generated Resources
-        # PR(Pull Request) 이벤트 도중에는 무한 루프나 권한 꼬임을 방지하기 위해, 
-        # 주로 main 브랜치 push나 스케줄러 실행 시에만 자동 커밋하도록 분기 처리하는 것이 안전합니다.
+        # 풀 리퀘스트(PR) 검사 도중이 아닐 때만 generated 리소스를 원격 저장소에 반영합니다.
         if: github.event_name != 'pull_request'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # generated 폴더에 새로 생성된 파일이 있는지 확인 후 커밋
           if [ -d "generated" ]; then
             git add generated/
-            git diff-index --quiet HEAD || (git commit -m "chore: 고도화된 AI 보안 리포트 및 리소스 파일 자동 업데이트 [skip ci]" && git push)
+            # 변경사항이 있을 때만 커밋을 수행하여 무의미한 커밋 생성 방지
+            git diff-index --quiet HEAD || (git commit -m "chore: 가상 에이전트 생성 리소스 파일 동적 업데이트 [skip ci]" && git push)
           fi
