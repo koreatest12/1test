@@ -2,8 +2,9 @@
   "engine_mode": "offline_agent",
   "supported_frameworks": [
     "python-3.11",
-    "codeql-v3"
+    "codeql-v4"
   ],
+  "runtime_environment": "node-24-core",
   "security_level": "extended-quality",
   "auto_generated_resources": [
     "generated/security_reports/AI_OFFLINE_FIX_GUIDE.md"
