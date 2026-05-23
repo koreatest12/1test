@@ -24,13 +24,10 @@ on:
     - cron: "21 2 * * 2"
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 permissions:
-  contents: write
+  contents: write        # 생성된 보안 파일 및 각 디렉토리 리소스를 커밋/푸시하기 위한 권한
   actions: read
-  security-events: write 
+  security-events: write # CodeQL 결과를 저장소 보안 탭에 기록하기 위한 권한
 
 concurrency:
   group: codeql-${{ github.workflow }}-${{ github.ref }}
@@ -61,7 +58,7 @@ jobs:
       # 2. Initialize CodeQL
       # -----------------------------------------------------------------------
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           queries: +security-extended,security-and-quality
@@ -70,7 +67,7 @@ jobs:
       # 3. Perform CodeQL Analysis
       # -----------------------------------------------------------------------
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
           upload: true
@@ -93,10 +90,7 @@ jobs:
           .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn httpx python-multipart pydantic
 
       # -----------------------------------------------------------------------
-      # 6. 오프라인 가상 에이전트 소스코드 빌드 및 서버별 로직 주입 (Base64 에러 영구 해결)
-      #    설계 원칙 - textwrap.dedent() 방식 채택:
-      #    - YAML Indentation 제약과 파이썬 문자열 구조를 완벽히 격리
-      #    - 디코딩 에러(binascii.Error) 원천 차단 및 휴먼 리더블 코드 유지
+      # 6. 오프라인 가상 에이전트 소스코드 빌드 및 서버별 CodeQL 최적화 로직 전면 주입
       # -----------------------------------------------------------------------
       - name: Deploy Offline Virtual Agent Engine & Enterprise Resources
         shell: bash
@@ -275,6 +269,7 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 8. 4노드 분산 클러스터 동시 배포 및 전체 보안 기능 연동 검증
+      #    포트 부팅 감지 방식: 안정성이 보장된 멀티라인 파이썬 스크립트로 대체
       # -----------------------------------------------------------------------
       - name: Deploy Cluster OpenAPI Servers & Validate Multi-Node Activation
         shell: bash
@@ -297,8 +292,29 @@ jobs:
 
           echo "[Deployment] PIDs: GW=$GW_PID, SEC=$SEC_PID, MIG=$MIG_PID, CFG=$CFG_PID"
 
-          # 각 서버 포트 소켓 폴링: sleep 고정 대기 대비 정확한 부팅 시점 감지
-          .venv_ai_agent/bin/python -c "import socket, time; ports=[8000,8070,8080,8090];[[ (lambda: [s.close() for _ in range(30) for s in [socket.socket()] if not s.connect_ex(('127.0.0.1',p)) or time.sleep(0.5) or s.close()])() or print(f'Port {p}: READY') for p in ports]"
+          # [수정됨] SyntaxError를 방지하기 위해 직관적이고 안정적인 파이썬 스크립트 파일 생성 및 실행
+          cat << 'PYEOF' > wait_for_ports.py
+          import socket
+          import time
+          import sys
+
+          ports = [8000, 8070, 8080, 8090]
+          for p in ports:
+              ready = False
+              for _ in range(30): # 최대 15초 대기 (0.5초 * 30회)
+                  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                      if s.connect_ex(('127.0.0.1', p)) == 0:
+                          print(f"[Port Check] Port {p} is READY.")
+                          ready = True
+                          break
+                  time.sleep(0.5)
+              if not ready:
+                  print(f"[ERROR] Port {p} failed to start within timeout.")
+                  sys.exit(1)
+          PYEOF
+          
+          # 포트 감지 스크립트 실행
+          .venv_ai_agent/bin/python wait_for_ports.py
 
           echo "[Validation] 배포된 4노드 전체 보안 파라미터 교차 진단 개시..."
 
@@ -391,7 +407,7 @@ jobs:
             if git diff-index --quiet HEAD; then
               echo "[INFO] 인프라 변경사항 없음, 형상 관리를 건너뜁니다."
             else
-              git commit -m "chore: 4노드 CodeQL 보안 클러스터 Base64 인코딩 에러 수정 배포 [skip ci]"
+              git commit -m "chore: 4노드 CodeQL 보안 클러스터 헬스체크 구문 오류 수정 및 전체 리소스 배포 [skip ci]"
               git push
             fi
           else
