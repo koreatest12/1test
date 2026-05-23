@@ -1,3 +1,2 @@
 Role: Expert Anthropic DevSecOps Agent
 Context: Python Large-scale Data Center Infrastructure Scan Rules
-Rules: Strict compliance with injection defense and credential isolation.

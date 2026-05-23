@@ -1,0 +1,60 @@
+>_  CVE Lite CLI (1.17.3)
+────────────────────────────────
+✔ Scan dependencies
+✔ Highlight critical issues
+✔ Show a clear fix plan
+
+Fast. Local. Developer-first.
+
+Offline mode: enabled (no external advisory calls will be made)
+Advisory source: local advisory database (/home/runner/.cache/cve-lite/advisories.db)
+Advisory DB freshness: just synced (2026-05-23T13:54:48.099Z)
+Parsed 12 packages from package-lock (package-lock.json)
+✗ Found 2 packages (5 CVEs) with known OSV matches from package-lock
+┌──────────┬──────┬────────┬─────┬─────────┐
+│ Critical │ High │ Medium │ Low │ Unknown │
+├──────────┼──────┼────────┼─────┼─────────┤
+│    0     │  2   │   0    │  0  │    0    │
+└──────────┴──────┴────────┴─────┴─────────┘
+
+Quick take
+- 2 vulnerable packages look directly fixable in this project.
+- 0 issues come through other dependencies.
+- 5 CVEs matched overall.
+- 2 packages include a fixed-version hint from OSV.
+
+🛠  Copy And Run These Fix Commands
+Detected package manager: npm (package-lock.json)
+1 command group ready across 2 packages (1 high).
+
+High severity fix commands
+┌─────────────┬─────────┬────────┬───────┬──────────────────┬────────────────────────┬───────────┐
+│ Package     │ Current │ Target │ Usage │ Versions scanned │ Still known vulnerable │ Breaking? │
+├─────────────┼─────────┼────────┼───────┼──────────────────┼────────────────────────┼───────────┤
+│ cross-spawn │ 5.1.0   │ 6.0.6  │ n/a   │ -                │ -                      │ ⚠         │
+│ minimatch   │ 3.0.4   │ 3.0.5  │ n/a   │ -                │ -                      │           │
+├─────────────┼─────────┼────────┼───────┼──────────────────┼────────────────────────┼───────────┤
+│ Total       │ -       │ -      │ -     │ 0                │ 0                      │           │
+└─────────────┴─────────┴────────┴───────┴──────────────────┴────────────────────────┴───────────┘
+> npm install cross-spawn@6.0.6 minimatch@3.0.5
+
+Showing medium+ findings in the main table. Use --all to show everything.
+┌─────────────┬─────────┬──────────┬────────┬───────┬───────┬──────────────────────────────────────────┐
+│ Package     │ Version │ Severity │ Type   │ Usage │ Fixed │ IDs                                      │
+├─────────────┼─────────┼──────────┼────────┼───────┼───────┼──────────────────────────────────────────┤
+│ cross-spawn │ 5.1.0   │ high     │ direct │ n/a   │ 6.0.6 │ GHSA-3xgq-45jj-v275                      │
+│ minimatch   │ 3.0.4   │ high     │ direct │ n/a   │ 3.0.5 │ GHSA-23c5-xmqv-rm74, GHSA-3ppc-4f35-3m2… │
+└─────────────┴─────────┴──────────┴────────┴───────┴───────┴──────────────────────────────────────────┘
+Tip: use --all to include low findings, or --min-severity high to focus only on urgent issues.
+
+Coverage notes
+• Scanned resolved dependency versions from package-lock.json.
+• Dependency paths are derived from lockfile package locations.
+• This MVP checks package versions against OSV advisories. It does not prove exploitability or runtime reachability.
+• Installed node_modules contents are not verified in this scan.
+• Container images, binaries, secrets, and IaC files are not scanned.
+• Monorepo workspace boundaries are only partially modeled in this version.
+• Offline mode uses the local advisory database and does not make outbound advisory API calls.
+
+────────────────────────────────
+✖ Scan complete. 2 issues found (0 critical, 2 high). Start with the priority fixes above.

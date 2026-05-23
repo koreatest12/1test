@@ -4,6 +4,5 @@
     "python-3.11",
     "codeql-v4"
   ],
-  "runtime_environment": "node-24-core",
-  "security_level": "extended-quality"
+  "runtime_environment": "node-24-core"
 }
