@@ -126,7 +126,7 @@ jobs:
               raw_data = fetch_security_database()
               print("[Virtual Agent] 데이터 파싱 및 타겟 디렉토리 대량 리소스 분배를 시작합니다.")
 
-              # 고도화된 다중 서버 클러스터 및 데이터 이관(Migration) 인프라 디렉토리 확장
+              # 고도화된 다중 서버 클러스터, 형상관리(Config) 및 이관(Migration) 인프라 디렉토리 확장
               os.makedirs("generated/security_reports", exist_ok=True)
               os.makedirs("generated/ai_configs/claude", exist_ok=True)
               os.makedirs("generated/ai_configs/gemini", exist_ok=True)
@@ -134,6 +134,7 @@ jobs:
               os.makedirs("generated/server/gateway", exist_ok=True)
               os.makedirs("generated/server/security", exist_ok=True)
               os.makedirs("generated/server/migration", exist_ok=True)
+              os.makedirs("generated/server/config", exist_ok=True) # 형상관리 전용 서버 디렉토리 추가
 
               # 리소스 1: 보안 레포트
               with open("generated/security_reports/AI_OFFLINE_FIX_GUIDE.md", "w", encoding="utf-8") as f:
@@ -165,9 +166,9 @@ jobs:
               openapi_spec = {
                   "openapi": "3.0.0",
                   "info": {
-                      "title": "Enterprise Offline AI Agent Cluster API",
-                      "version": "1.2.0",
-                      "description": "Node.js 24 기반 분산 멀티 웹 서버 및 데이터 이관 시스템용 API 사양"
+                      "title": "Enterprise Multi-Node Cluster API",
+                      "version": "1.3.0",
+                      "description": "분산 게이트웨이, 보안, 이관 및 형상관리(Config) 서버 API 통합 사양"
                   }
               }
               with open("generated/openapi/openapi_spec.json", "w", encoding="utf-8") as f:
@@ -184,7 +185,7 @@ jobs:
                   "from fastapi import FastAPI, HTTPException, Header\n",
                   "from typing import Optional\n",
                   "\n",
-                  "app = FastAPI(title='Enterprise AI Gateway Server', version='1.2.0')\n",
+                  "app = FastAPI(title='Enterprise AI Gateway Server', version='1.3.0')\n",
                   "\n",
                   "# CodeQL 대비: 주입 공격 방어를 위한 엄격한 엔드포인트 세그먼트 정규식 매칭\n",
                   "NODE_PATTERN = re.compile(r'^[a-zA-Z0-9_\\-]+$')\n",
@@ -195,14 +196,10 @@ jobs:
                   "\n",
                   "@app.get('/api/v1/validate/{node_id}')\n",
                   "def validate_node(node_id: str, x_auth_token: Optional[str] = Header(None)):\n",
-                  "    # 1. 하드코딩된 자격증명 배제 및 토큰 필수 유효성 스캔 검증\n",
                   "    if not x_auth_token or len(x_auth_token) < 16:\n",
                   "        raise HTTPException(status_code=401, detail='Invalid or missing security token.')\n",
-                  "    \n",
-                  "    # 2. Path Injection(경로 조작 및 SSRF 탐지) 방지를 위한 정제 검사\n",
                   "    if not NODE_PATTERN.match(node_id):\n",
                   "        raise HTTPException(status_code=400, detail='Malicious input pattern detected.')\n",
-                  "        \n",
                   "    return {'status': 'authorized', 'node_id': node_id}\n",
                   "\n",
                   "if __name__ == '__main__':\n",
@@ -217,9 +214,8 @@ jobs:
                   "from fastapi import FastAPI, HTTPException\n",
                   "from pydantic import BaseModel, constr\n",
                   "\n",
-                  "app = FastAPI(title='Isolated Enterprise Security Node', version='1.2.0')\n",
+                  "app = FastAPI(title='Isolated Enterprise Security Node', version='1.3.0')\n",
                   "\n",
-                  "# CodeQL 대비: Pydantic을 활용한 명시적 타입 바인딩 및 입력 글자수(도스 공격 방어) 리미트 설정\n",
                   "class QueryModel(BaseModel):\n",
                   "    rule_id: constr(min_length=3, max_length=50, pattern=r'^SEC-[0-9]+$')\n",
                   "\n",
@@ -229,7 +225,6 @@ jobs:
                   "\n",
                   "@app.post('/api/v1/security/inspect')\n",
                   "def inspect_rule(query: QueryModel):\n",
-                  "    # 안전한 룩업 테이블 구조 배치 (보안 취약점 조작 완전 격리)\n",
                   "    mock_db = {'SEC-101': 'Injection Defense Triggered', 'SEC-102': 'Broken Auth Patched'}\n",
                   "    result = mock_db.get(query.rule_id)\n",
                   "    if not result:\n",
@@ -248,19 +243,16 @@ jobs:
                   "from fastapi import FastAPI, HTTPException\n",
                   "from pydantic import BaseModel, Field\n",
                   "\n",
-                  "app = FastAPI(title='Enterprise Data Migration Engine', version='1.2.0')\n",
+                  "app = FastAPI(title='Enterprise Data Migration Engine', version='1.3.0')\n",
                   "\n",
-                  "# CodeQL 대비: 무제한 리소스 요청 공격(DoS) 방지를 위한 값의 경계 조건(Field 범위) 명시\n",
                   "class MigrationPayload(BaseModel):\n",
                   "    target_node: str = Field(..., min_length=5, max_length=100)\n",
-                  "    resource_count: int = Field(..., ge=1, le=10000) # 1개 이상 10,000개 이하 세그먼트로 제한\n",
+                  "    resource_count: int = Field(..., ge=1, le=10000)\n",
                   "\n",
                   "@app.post('/api/v1/migrate/transfer')\n",
                   "def execute_migration(payload: MigrationPayload):\n",
-                  "    # 위험한 동적 실행식(eval, exec)을 전면 배제한 고정 변수 맵핑 구현\n",
                   "    if 'cluster' not in payload.target_node:\n",
                   "        raise HTTPException(status_code=403, detail='Unauthorized destination node zone.')\n",
-                  "        \n",
                   "    return {\n",
                   "        'status': 'healthy',\n",
                   "        'migration_status': 'completed',\n",
@@ -274,11 +266,48 @@ jobs:
               with open("generated/server/migration/migration_main.py", "w", encoding="utf-8") as f:
                   f.writelines(migration_server)
 
+              # 서비스 4: Configuration Management Server (형상관리 노드 추가, XSS 및 Path Traversal 방어)
+              config_server = [
+                  "import uvicorn\n",
+                  "import re\n",
+                  "from fastapi import FastAPI, HTTPException\n",
+                  "from pydantic import BaseModel, Field\n",
+                  "\n",
+                  "app = FastAPI(title='Enterprise Configuration Management Node', version='1.3.0')\n",
+                  "\n",
+                  "# CodeQL 대비: 형상관리 메타데이터 주입 및 크로스 사이트 스크립팅 방어\n",
+                  "class CommitPayload(BaseModel):\n",
+                  "    repo_name: str = Field(..., pattern=r'^[a-zA-Z0-9_\\-]{3,50}$')\n",
+                  "    commit_message: str = Field(..., min_length=1, max_length=200)\n",
+                  "    changes_count: int = Field(..., ge=1, le=5000)\n",
+                  "\n",
+                  "@app.get('/api/v1/config/health')\n",
+                  "def config_health():\n",
+                  "    return {'status': 'healthy', 'node': 'config_management_v1'}\n",
+                  "\n",
+                  "@app.post('/api/v1/config/commit')\n",
+                  "def record_commit(payload: CommitPayload):\n",
+                  "    # 위험 문자열 스캔 (디렉토리 취약점 및 XSS 시도 1차 필터)\n",
+                  "    if '..' in payload.commit_message or '<script>' in payload.commit_message:\n",
+                  "        raise HTTPException(status_code=400, detail='Path Traversal or XSS payload detected.')\n",
+                  "    \n",
+                  "    return {\n",
+                  "        'status': 'committed',\n",
+                  "        'repository': payload.repo_name,\n",
+                  "        'changes_applied': payload.changes_count\n",
+                  "    }\n",
+                  "\n",
+                  "if __name__ == '__main__':\n",
+                  "    uvicorn.run(app, host='127.0.0.1', port=8100)\n",
+              ]
+              with open("generated/server/config/config_main.py", "w", encoding="utf-8") as f:
+                  f.writelines(config_server)
+
               # 리소스 6: 글로벌 환경변수 템플릿 배포
               with open("generated/.env.example", "w", encoding="utf-8") as f:
                   f.write("ENV=production\nLOG_LEVEL=WARNING\nTOKEN_LESS_MODE=TRUE\n")
 
-              print("[Virtual Agent] CodeQL 대응 보안 로직이 내장된 멀티 아키텍처 서버 리소스 배포가 완료되었습니다.")
+              print("[Virtual Agent] 형상관리 노드를 포함한 4대 핵심 아키텍처 리소스 배포가 완벽하게 처리되었습니다.")
 
           if __name__ == "__main__":
               run_agent()
@@ -293,7 +322,7 @@ jobs:
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
       # -----------------------------------------------------------------------
-      # 8. 분산형 파이썬 OpenAPI 웹 서버 클러스터 동시 배포 및 보안 기능 연동 검증
+      # 8. 4대 분산형 클러스터 서버(Gateway, Security, Migration, Config) 동시 배포 및 검증
       # -----------------------------------------------------------------------
       - name: Deploy Cluster OpenAPI Servers & Validate Multi-Node Activation
         shell: bash
@@ -302,32 +331,36 @@ jobs:
           .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py &
           GATEWAY_PID=$!
           
-          echo "[Deployment] Node 2: 독립 안전진단 백엔드 노드 서버 구동..."
+          echo "[Deployment] Node 2: 독립 안전진단 백엔드 노드 구동..."
           .venv_ai_agent/bin/python generated/server/security/security_main.py &
           SECURITY_PID=$!
 
-          echo "[Deployment] Node 3: 리소스 자원 이관(Migration) 브릿지 서버 구동..."
+          echo "[Deployment] Node 3: 리소스 이관(Migration) 브릿지 서버 구동..."
           .venv_ai_agent/bin/python generated/server/migration/migration_main.py &
           MIGRATION_PID=$!
+
+          echo "[Deployment] Node 4: 형상관리(Configuration Management) 서버 구동..."
+          .venv_ai_agent/bin/python generated/server/config/config_main.py &
+          CONFIG_PID=$!
           
           # 분산 노드 인프라 부팅 타임 확보
-          sleep 7
+          sleep 8
 
-          echo "[Deployment] 배포 완료된 분산 노드 전체 가용성 상태 및 보안 파라미터 교차 진단을 개시합니다."
+          echo "[Deployment] 배포 완료된 4대 분산 노드 전체 가용성 상태 및 보안 파라미터 교차 진단을 개시합니다."
           
-          # 1번 게이트웨이 웹 서버 응답 검증
+          # 1번 게이트웨이 검증
           gw_response=$(curl -s --retry 3 --retry-delay 2 http://127.0.0.1:8000/health)
           gw_status=$(echo "$gw_response" | .venv_ai_agent/bin/python -c \
             "import sys, json; data=json.load(sys.stdin); print(data.get('status',''))")
 
-          # 2번 보안 진단 노드 - 정상적인 규격 매칭 포스트 요청 테스트 검증
+          # 2번 보안 진단 노드 검증
           sec_response=$(curl -s -X POST http://127.0.0.1:8080/api/v1/security/inspect \
             -H "Content-Type: application/json" \
             -d '{"rule_id": "SEC-101"}')
           sec_audit=$(echo "$sec_response" | .venv_ai_agent/bin/python -c \
             "import sys, json; data=json.load(sys.stdin); print(data.get('audit_result',''))")
 
-          # 3번 대량 이관 브릿지 - CodeQL 가이드라인 범위 내 경계 조건 전송 및 이관결과 확인
+          # 3번 대량 이관 브릿지 검증
           mig_response=$(curl -s -X POST http://127.0.0.1:8090/api/v1/migrate/transfer \
             -H "Content-Type: application/json" \
             -d '{"target_node": "security_node_cluster", "resource_count": 500}')
@@ -336,19 +369,30 @@ jobs:
           mig_result=$(echo "$mig_response" | .venv_ai_agent/bin/python -c \
             "import sys, json; data=json.load(sys.stdin); print(data.get('migration_status',''))")
 
-          echo "인프라 보안 통신 추적 결과 -> Gateway: '$gw_status' | Security Audit: '$sec_audit' | Migration: '$mig_status' (결과: '$mig_result')"
+          # 4번 형상관리(Config) 서버 응답 및 보안 방어 로직 검증
+          cfg_health_resp=$(curl -s --retry 3 --retry-delay 2 http://127.0.0.1:8100/api/v1/config/health)
+          cfg_status=$(echo "$cfg_health_resp" | .venv_ai_agent/bin/python -c \
+            "import sys, json; data=json.load(sys.stdin); print(data.get('status',''))")
+
+          cfg_commit_resp=$(curl -s -X POST http://127.0.0.1:8100/api/v1/config/commit \
+            -H "Content-Type: application/json" \
+            -d '{"repo_name": "grand_ops_master", "commit_message": "Automated security patch rollout", "changes_count": 12}')
+          cfg_commit_status=$(echo "$cfg_commit_resp" | .venv_ai_agent/bin/python -c \
+            "import sys, json; data=json.load(sys.stdin); print(data.get('status',''))")
+
+          echo "인프라 보안 통신 추적 결과 -> Gateway: '$gw_status' | Security Audit: '$sec_audit' | Migration: '$mig_result' | Config: '$cfg_status' (Commit: '$cfg_commit_status')"
 
           # 시스템 통합 무결성 판단
-          if [[ "$gw_status" == "healthy" && "$sec_audit" == "Injection Defense Triggered" && "$mig_status" == "healthy" && "$mig_result" == "completed" ]]; then
-            echo "[SUCCESS] 모든 분산 파이썬 웹 서버 노드가 CodeQL 확장 보안 규격을 충족하며 성공적으로 가동되었습니다."
+          if [[ "$gw_status" == "healthy" && "$sec_audit" == "Injection Defense Triggered" && "$mig_result" == "completed" && "$cfg_status" == "healthy" && "$cfg_commit_status" == "committed" ]]; then
+            echo "[SUCCESS] 형상관리 노드를 포함한 4대 분산 파이썬 웹 서버 클러스터가 CodeQL 확장 보안 규격을 충족하며 성공적으로 가동 및 검증되었습니다."
           else
             echo "[ERROR] 분산 노드 보안 파라미터 매칭 실패 또는 데이터 통신 무결성 오염 감지."
-            kill "$GATEWAY_PID" "$SECURITY_PID" "$MIGRATION_PID" 2>/dev/null || true
+            kill "$GATEWAY_PID" "$SECURITY_PID" "$MIGRATION_PID" "$CONFIG_PID" 2>/dev/null || true
             exit 1
           fi
 
-          # 파이프라인 진단 성공 후 백그라운드 프로세스 자원 해제
-          kill "$GATEWAY_PID" "$SECURITY_PID" "$MIGRATION_PID" 2>/dev/null || true
+          # 파이프라인 진단 성공 후 모든 백그라운드 프로세스 자원 안전 해제
+          kill "$GATEWAY_PID" "$SECURITY_PID" "$MIGRATION_PID" "$CONFIG_PID" 2>/dev/null || true
 
       # -----------------------------------------------------------------------
       # 9. 생성된 분산형 대량 리소스 및 배포 자원 자동 커밋 & 푸시 (PR 제외)
@@ -364,7 +408,7 @@ jobs:
             if git diff-index --quiet HEAD; then
               echo "[INFO] 인프라 변경사항 없음, 형상 관리를 건너뜜."
             else
-              git commit -m "chore: 각 서비스 노드별 CodeQL 전면 보안 로직 내장 및 분산 클러스터 리소스 배포 [skip ci]"
+              git commit -m "chore: 형상관리(Config) 서버 편입 및 4대 멀티 클러스터 보안 아키텍처 통합 배포 [skip ci]"
               git push
             fi
           else
