@@ -1,12 +1,12 @@
-# 🛡️ AI Virtual Agent Offline Security Report
+# AI Virtual Agent Offline Security Report
 
-본 리포트는 API Key 연동 없이 가상 에이전트에 내장된 로컬 정적 규칙 데이터 및 OWASP 마스터 데이터베이스를 기반으로 동적 생성되었습니다.
+본 리포트는 API Key 없이 가상 에이전트 내장 규칙 및 OWASP 데이터 기반으로 생성되었습니다.
 
 ## 1. 파이썬 프로젝트 필수 보안 레이어 권장사항
-- **의존성 무결성**: `pip-audit`을 활용한 지속적 패키지 스캔 도입
-- **비밀키 관리**: 소스코드 내부 하드코딩 완전 배제 및 `.env` 주입식 인프라 구성
+- **의존성 무결성**: `pip-audit` 활용 지속적 패키지 스캔
+- **비밀키 관리**: 소스코드 하드코딩 배제 및 `.env` 주입식 인프라 구성
 
-## 2. 참조된 오프라인 위협 가이드라인 원본 소스
+## 2. 참조된 OWASP 원본 소스
 # DotNet Security Cheat Sheet
 
 ## Introduction
@@ -39,4 +39,4 @@ Receive security notifications by selecting the "Watch" button at the following 
 This section contains general guidance for .NET applications.
 This applies to all .NET applications, including ASP.N
 
-... (이하 하위 데이터 에이전트 내부 캐싱 처리됨) ...
+... (이하 에이전트 내부 캐싱 처리됨) ...

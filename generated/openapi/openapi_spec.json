@@ -1,29 +1,38 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Offline AI Agent Security API",
-    "version": "1.0.0",
-    "description": "가상 에이전트 안전진단 모듈용 OpenAPI 규격 가이드라인"
+    "title": "Enterprise Offline AI Agent Cluster API",
+    "version": "1.1.0",
+    "description": "분산 멀티 웹 서버 환경용 가상 오프라인 안전진단 API 사양"
   },
   "paths": {
     "/health": {
       "get": {
-        "summary": "서버 상태 확인",
+        "summary": "게이트웨이 코어 서버 상태 검증 엔드포인트",
         "responses": {
           "200": {
-            "description": "정상 구동 중",
+            "description": "정상 신호",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string"
-                    },
-                    "agent": {
-                      "type": "string"
-                    }
-                  }
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/status": {
+      "get": {
+        "summary": "독립 보안 에이전트 서브모듈 상태 라우팅",
+        "responses": {
+          "200": {
+            "description": "진단 서버 연동 정상 완료",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }
