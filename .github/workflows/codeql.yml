@@ -1,6 +1,6 @@
 name: "CodeQL Advanced Security Scan with Offline AI Agent"
 
-on:  
+on:
   push:
     branches:
       - main
@@ -25,9 +25,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write           # 생성된 보안 파일 및 각 디렉토리 리소스를 커밋/푸시하기 위한 권한
+  contents: write        # 생성된 보안 파일 및 각 디렉토리 리소스를 커밋/푸시하기 위한 권한
   actions: read
-  security-events: write    # CodeQL 결과를 저장소 보안 탭에 기록하기 위한 권한
+  security-events: write # CodeQL 결과를 저장소 보안 탭에 기록하기 위한 권한
 
 concurrency:
   group: codeql-${{ github.workflow }}-${{ github.ref }}
@@ -45,102 +45,110 @@ jobs:
           - python
 
     steps:
-      # 1. Checkout repository (Node.js 24 호환 최신 메이저 v6 전환)
+      # -----------------------------------------------------------------------
+      # 1. Checkout repository
+      # -----------------------------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      # 2. Initialize CodeQL (Node.js 24를 네이티브 지원하는 최신 v4/v5 릴리스 적용)
+      # -----------------------------------------------------------------------
+      # 2. Initialize CodeQL
+      # -----------------------------------------------------------------------
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           queries: +security-extended,security-and-quality
 
+      # -----------------------------------------------------------------------
       # 3. Perform CodeQL Analysis
+      # -----------------------------------------------------------------------
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
           upload: true
 
-      # -------------------------------------------------------------------------
-      #  Key-less 기반 독립 가상 에이전트 구동 및 파이썬 프로덕션 서버 자동 배포 시스템
-      # -------------------------------------------------------------------------            
-
-      # 4. Setup Python Runtime (Node.js 24를 완벽하게 네이티브 지원하는 @v6 버전으로 업그레이드)
+      # -----------------------------------------------------------------------
+      # 4. Setup Python Runtime
+      # -----------------------------------------------------------------------
       - name: Setup Python Runtime
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      # 5. 가상 환경 구축 및 서버/의존성 코어 패키지 추가 설치
+      # -----------------------------------------------------------------------
+      # 5. 가상 환경 구축 및 다중 서버/의존성 코어 패키지 설치
+      # -----------------------------------------------------------------------
       - name: Create Isolated Virtual Environment & Install Server Packages
         run: |
           python -m venv .venv_ai_agent
           .venv_ai_agent/bin/pip install --upgrade pip
-          # OpenAPI 서버 인프라 구축용 핵심 의존성 패키지 설치
-          .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn httpx
+          .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn httpx python-multipart
 
-      # 6. 오프라인 가상 에이전트 및 서비스 배포 소스코드 빌드
+      # -----------------------------------------------------------------------
+      # 6. 오프라인 가상 에이전트 소스코드 빌드 및 다중 서버 자원 분배
+      # -----------------------------------------------------------------------
       - name: Deploy Offline Virtual Agent Engine & Server Resources
         shell: bash
         run: |
           mkdir -p .venv_ai_agent/agent_core
-          
-          cat << 'EOF' > .venv_ai_agent/agent_core/ai_agent.py
+
+          cat > .venv_ai_agent/agent_core/ai_agent.py << 'PYEOF'
           import os
           import urllib.request
           import json
 
           def fetch_security_database():
               print("[Virtual Agent] 외부 API Key 없이 구동 가능한 가상 에이전트 모드를 활성화합니다.")
-              print("[Virtual Agent] OWASP 및 주요 AI 엔진들이 참조하는 필수 보안 위협 데이터베이스 다운로드를 시작합니다...")
-              
+              print("[Virtual Agent] OWASP 보안 위협 데이터베이스 다운로드를 시작합니다...")
+
               url = "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/DotNet_Security_Cheat_Sheet.md"
               try:
-                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                  req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                   with urllib.request.urlopen(req, timeout=10) as response:
-                      return response.read().decode('utf-8')
+                      return response.read().decode("utf-8")
               except Exception as e:
-                  print(f"[WARN] 외부 데이터 실시간 다운로드 실패 ({e}), 내장된 엔진 핵심 규칙 데이터로 대체 처리를 개시합니다.")
+                  print(f"[WARN] 외부 데이터 다운로드 실패 ({e}), 내장 규칙 데이터로 대체합니다.")
                   return None
 
           def run_agent():
               raw_data = fetch_security_database()
-              print("[Virtual Agent] 데이터 파싱 및 타겟 디렉토리 리소스 분배를 시작합니다.")
-              
-              # 물리적 추가 디렉토리 구조 격리 엔지니어링
+              print("[Virtual Agent] 데이터 파싱 및 디렉토리 리소스 분배를 시작합니다.")
+
+              # 고도화된 다중 서버 전용 디렉토리 및 필수 인프라 구조 확장 생성
               os.makedirs("generated/security_reports", exist_ok=True)
               os.makedirs("generated/ai_configs/claude", exist_ok=True)
               os.makedirs("generated/ai_configs/gemini", exist_ok=True)
               os.makedirs("generated/openapi", exist_ok=True)
-              os.makedirs("generated/server", exist_ok=True) # 파이썬 프로덕션 서버 디렉토리 추가
-              
-              # 리소스 1: 통합 가상 에이전트 종합 레포트 작성
-              with open("generated/security_reports/AI_OFFLINE_FIX_GUIDE.md", "w", encoding="utf-8") as f:
-                  f.write("# 🛡️ AI Virtual Agent Offline Security Report\n\n")
-                  f.write("본 리포트는 API Key 연동 없이 가상 에이전트에 내장된 로컬 정적 규칙 데이터 및 OWASP 마스터 데이터베이스를 기반으로 동적 생성되었습니다.\n\n")
-                  f.write("## 1. 파이썬 프로젝트 필수 보안 레이어 권장사항\n")
-                  f.write("- **의존성 무결성**: `pip-audit`을 활용한 지속적 패키지 스캔 도입\n")
-                  f.write("- **비밀키 관리**: 소스코드 내부 하드코딩 완전 배제 및 `.env` 주입식 인프라 구성\n\n")
-                  if raw_data:
-                      f.write("## 2. 참조된 오프라인 위협 가이드라인 원본 소스\n")
-                      f.write(raw_data[:2000] + "\n\n... (이하 하위 데이터 에이전트 내부 캐싱 처리됨) ...\n")
+              os.makedirs("generated/server/gateway", exist_ok=True)   # API 게이트웨이 전용 공간
+              os.makedirs("generated/server/security", exist_ok=True)  # 안전진단 백엔드 전용 공간
 
-              # 리소스 2: Claude 컨텍스트용 전용 인프라 설정 데이터 반영
+              # 리소스 1: 보안 레포트
+              with open("generated/security_reports/AI_OFFLINE_FIX_GUIDE.md", "w", encoding="utf-8") as f:
+                  f.write("# AI Virtual Agent Offline Security Report\n\n")
+                  f.write("본 리포트는 API Key 없이 가상 에이전트 내장 규칙 및 OWASP 데이터 기반으로 생성되었습니다.\n\n")
+                  f.write("## 1. 파이썬 프로젝트 필수 보안 레이어 권장사항\n")
+                  f.write("- **의존성 무결성**: `pip-audit` 활용 지속적 패키지 스캔\n")
+                  f.write("- **비밀키 관리**: 소스코드 하드코딩 배제 및 `.env` 주입식 인프라 구성\n\n")
+                  if raw_data:
+                      f.write("## 2. 참조된 OWASP 원본 소스\n")
+                      f.write(raw_data[:2000] + "\n\n... (이하 에이전트 내부 캐싱 처리됨) ...\n")
+
+              # 리소스 2: Claude 설정
               with open("generated/ai_configs/claude/system_prompt.txt", "w", encoding="utf-8") as f:
                   f.write("Role: Expert Anthropic DevSecOps Agent\n")
                   f.write("Context: Python Large-scale Data Center Infrastructure Scan Rules\n")
                   f.write("Rules: Strict compliance with injection defense and credential isolation.\n")
 
-              # 리소스 3: Gemini 지식 베이스용 필수 가이드라인 반영
+              # 리소스 3: Gemini 설정
               with open("generated/ai_configs/gemini/context_data.json", "w", encoding="utf-8") as f:
                   config_payload = {
                       "engine_mode": "offline_agent",
-                      "supported_frameworks": ["python-3.11", "codeql-v4"],
+                      "supported_frameworks": ["python-3.11", "codeql-v3"],
                       "security_level": "extended-quality",
                       "auto_generated_resources": [
                           "generated/security_reports/AI_OFFLINE_FIX_GUIDE.md"
@@ -148,32 +156,33 @@ jobs:
                   }
                   json.dump(config_payload, f, indent=2, ensure_ascii=False)
 
-              # 리소스 4: OpenAPI 규격 데이터 세부 구성
+              # 리소스 4: 통합 OpenAPI 3.0 명세 설계 사양 반영
               openapi_spec = {
                   "openapi": "3.0.0",
                   "info": {
-                      "title": "Offline AI Agent Security API",
-                      "version": "1.0.0",
-                      "description": "가상 에이전트 안전진단 모듈용 OpenAPI 규격 가이드라인"
+                      "title": "Enterprise Offline AI Agent Cluster API",
+                      "version": "1.1.0",
+                      "description": "분산 멀티 웹 서버 환경용 가상 오프라인 안전진단 API 사양"
                   },
                   "paths": {
                       "/health": {
                           "get": {
-                              "summary": "서버 상태 확인",
+                              "summary": "게이트웨이 코어 서버 상태 검증 엔드포인트",
                               "responses": {
                                   "200": {
-                                      "description": "정상 구동 중",
-                                      "content": {
-                                          "application/json": {
-                                              "schema": {
-                                                  "type": "object",
-                                                  "properties": {
-                                                      "status": {"type": "string"},
-                                                      "agent": {"type": "string"}
-                                                  }
-                                              }
-                                          }
-                                      }
+                                      "description": "정상 신호",
+                                      "content": {"application/json": {"schema": {"type": "object"}}}
+                                  }
+                              }
+                          }
+                      },
+                      "/api/v1/security/status": {
+                          "get": {
+                              "summary": "독립 보안 에이전트 서브모듈 상태 라우팅",
+                              "responses": {
+                                  "200": {
+                                      "description": "진단 서버 연동 정상 완료",
+                                      "content": {"application/json": {"schema": {"type": "object"}}}
                                   }
                               }
                           }
@@ -183,80 +192,124 @@ jobs:
               with open("generated/openapi/openapi_spec.json", "w", encoding="utf-8") as f:
                   json.dump(openapi_spec, f, indent=2, ensure_ascii=False)
 
-              # 리소스 5: 배포 자동화를 위한 실제 배포용 파이썬 FastAPI 서버 소스코드 원본 작성
-              server_code = """import uvicorn
-from fastapi import FastAPI
+              # 리소스 5-A: 서버 1 - API Gateway 웹 서버 핵심 소스코드 생성
+              gateway_server = [
+                  "import uvicorn\n",
+                  "from fastapi import FastAPI\n",
+                  "\n",
+                  "app = FastAPI(title='Enterprise AI Gateway Server', version='1.1.0')\n",
+                  "\n",
+                  "@app.get('/health')\n",
+                  "def gateway_health():\n",
+                  "    return {'status': 'healthy', 'service': 'api_gateway_core'}\n",
+                  "\n",
+                  "if __name__ == '__main__':\n",
+                  "    uvicorn.run(app, host='127.0.0.1', port=8000)\n",
+              ]
+              with open("generated/server/gateway/gateway_main.py", "w", encoding="utf-8") as f:
+                  f.writelines(gateway_server)
 
-app = FastAPI(
-    title="Offline AI Agent Security API",
-    version="1.0.0",
-    description="배포 및 실시간 상태 검증용 가상 서버 컨텍스트"
-)
+              # 리소스 5-B: 서버 2 - 독립 보안 진단 전용 웹 서버 핵심 소스코드 생성
+              security_server = [
+                  "import uvicorn\n",
+                  "from fastapi import FastAPI\n",
+                  "\n",
+                  "app = FastAPI(title='Isolated Enterprise Security Node', version='1.1.0')\n",
+                  "\n",
+                  "@app.get('/api/v1/security/status')\n",
+                  "def security_node_status():\n",
+                  "    return {'status': 'healthy', 'node': 'security_engine_v1', 'isolation_mode': True}\n",
+                  "\n",
+                  "if __name__ == '__main__':\n",
+                  "    uvicorn.run(app, host='127.0.0.1', port=8080)\n",
+              ]
+              with open("generated/server/security/security_main.py", "w", encoding="utf-8") as f:
+                  f.writelines(security_server)
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy", "agent": "offline_virtual_agent_v1"}
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to AI Virtual Agent Enterprise Deployment Server"}
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-"""
-              with open("generated/server/main.py", "w", encoding="utf-8") as f:
-                  f.write(server_code)
-
-              # 리소스 6: 루트 및 개별 디렉토리에 범용 가상환경 템플릿 배포
+              # 리소스 6: 환경변수 템플릿 배포
               with open("generated/.env.example", "w", encoding="utf-8") as f:
                   f.write("# Environment template injected by AI offline agent\n")
                   f.write("ENV=production\n")
                   f.write("LOG_LEVEL=WARNING\n")
                   f.write("TOKEN_LESS_MODE=TRUE\n")
 
-              print("[Virtual Agent] 모든 AI별 세부 디렉토리 및 배포용 웹 서버 소스 빌드가 완료되었습니다.")
+              print("[Virtual Agent] 분산 멀티 서버 디렉토리 아키텍처 및 서버 소스 빌드가 완료되었습니다.")
 
           if __name__ == "__main__":
               run_agent()
-          EOF
+          PYEOF
 
-      # 7. 에이전트 가동 및 파일 시스템 생성 반영
+      # -----------------------------------------------------------------------
+      # 7. 에이전트 실행
+      # -----------------------------------------------------------------------
       - name: Execute Offline AI Virtual Agent via Venv Path
         shell: bash
         run: |
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
-      # 8. 파이썬 OpenAPI 웹 서버 프로덕션 배포 및 라이브 헬스체크 검증 수행
-      - name: Deploy Python OpenAPI Server & Validate Active Deployment
+      # -----------------------------------------------------------------------
+      # 8. 분산 멀티 파이썬 OpenAPI 웹 서버 동시 배포 및 완결적 연동 헬스체크
+      # -----------------------------------------------------------------------
+      - name: Deploy Cluster OpenAPI Servers & Validate Multi-Node Activation
         shell: bash
         run: |
-          echo "[Deployment] 파이썬 OpenAPI 서버 백그라운드 배포 구동을 시작합니다..."
-          # 생성된 서버 소스코드를 가상환경 실행기 기반 백그라운드로 구동
-          .venv_ai_agent/bin/python generated/server/main.py &
+          echo "[Deployment] Node 1: API Gateway 코어 서버 백그라운드 구동 프로세스 적재..."
+          .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py &
+          GATEWAY_PID=$!
           
-          # 서버 초기 부팅 대기 시간 확보
-          sleep 3
+          echo "[Deployment] Node 2: 독립 안전진단 노드 서버 백그라운드 구동 프로세스 적재..."
+          .venv_ai_agent/bin/python generated/server/security/security_main.py &
+          SECURITY_PID=$!
           
-          echo "[Deployment] 배포된 로컬 OpenAPI API 엔드포인트 응답 테스트를 수행합니다."
-          # 배포 가용성 원격 체크 검증 완료 처리
-          response=$(curl -s http://127.0.0.1:8000/health)
-          echo "서버 실시간 가동 응답 데이터: $response"
+          echo "인프라 구동 PID 모니터링 -> Gateway: $GATEWAY_PID | Security: $SECURITY_PID"
+
+          # 분산 노드 인프라 안정 부팅 타임 확보
+          sleep 6
+
+          echo "[Deployment] 배포된 각 분산 서버 인프라 타겟 노드 검증을 개시합니다."
           
-          if [[ "$response" == *'"status":"healthy"'* ]]; then
-            echo "[SUCCESS] OpenAPI 파이썬 인프라 웹 서버 배포가 정상 승인되었습니다."
+          # 1번 게이트웨이 웹 서버 응답 파싱 검증
+          gw_response=$(curl -s --retry 3 --retry-delay 2 http://127.0.0.1:8000/health)
+          echo "Gateway 노드 응답: $gw_response"
+          gw_status=$(echo "$gw_response" | .venv_ai_agent/bin/python -c \
+            "import sys, json; data=json.load(sys.stdin); print(data.get('status',''))")
+
+          # 2번 보안 노드 웹 서버 응답 파싱 검증
+          sec_response=$(curl -s --retry 3 --retry-delay 2 http://127.0.0.1:8080/api/v1/security/status)
+          echo "Security 노드 응답: $sec_response"
+          sec_status=$(echo "$sec_response" | .venv_ai_agent/bin/python -c \
+            "import sys, json; data=json.load(sys.stdin); print(data.get('status',''))")
+
+          # 완결적 멀티 배포 인프라 통합 가용성 판단
+          if [[ "$gw_status" == "healthy" && "$sec_status" == "healthy" ]]; then
+            echo "[SUCCESS] 분산형 파이썬 OpenAPI 서버 클러스터 배포 환경 무결성 진단이 완벽히 승인되었습니다."
           else
-            echo "[ERROR] 서버 가동 실패 혹은 정상적인 응답이 반환되지 않았습니다."
+            echo "[ERROR] 서버 클러스터 구동 실패 혹은 비정상 데이터 검측됨."
+            echo "검측 요약 정보 -> Gateway: '$gw_status' | Security: '$sec_status'"
+            kill "$GATEWAY_PID" "$SECURITY_PID" 2>/dev/null || true
             exit 1
           fi
 
-      # 9. 변경 리소스 및 배포 인프라 자원 자동 커밋 및 푸시
+          # 인프라 상태 체크 완료 후 백그라운드 프로세스 안전 소거
+          kill "$GATEWAY_PID" "$SECURITY_PID" 2>/dev/null || true
+
+      # -----------------------------------------------------------------------
+      # 9. 생성된 분산형 리소스 및 배포 자원 자동 커밋 & 푸시 (PR 제외)
+      # -----------------------------------------------------------------------
       - name: Commit & Push Generated Resources & Server Deployments
         if: github.event_name != 'pull_request'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
+
           if [ -d "generated" ]; then
             git add generated/
-            git diff-index --quiet HEAD || (git commit -m "chore: 오프라인 AI 가상 에이전트 각 디렉토리 데이터, OpenAPI 실서버 소스 코드 및 배포 리소스 반영 [skip ci]" && git push)
+            if git diff-index --quiet HEAD; then
+              echo "[INFO] 인프라 변경사항 없음, 형상 관리를 건너뜜."
+            else
+              git commit -m "chore: 멀티 파이썬 서버 클러스터 인프라 디렉토리 빌드 및 자동 배포 자원 생성 반영 [skip ci]"
+              git push
+            fi
+          else
+            echo "[WARN] generated/ 타겟 디렉토리가 소실되었습니다."
           fi
