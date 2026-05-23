@@ -67,7 +67,7 @@ jobs:
           upload: true
 
       # -------------------------------------------------------------------------
-      #  Key-less 기반 독립 가상 에이전트 구동 및 디렉토리 파일 분배 시스템 (OpenAPI 서버 포함)
+      #  Key-less 기반 독립 가상 에이전트 구동 및 파이썬 프로덕션 서버 자동 배포 시스템
       # -------------------------------------------------------------------------            
 
       # 4. Setup Python Runtime (Node.js 24를 완벽하게 네이티브 지원하는 @v6 버전으로 업그레이드)
@@ -76,15 +76,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      # 5. 가상 환경 구축 및 OpenAPI 서버/가상 에이전트 엔진 빌드
-      - name: Create Isolated Virtual Environment & Install OpenAPI Tools
+      # 5. 가상 환경 구축 및 서버/의존성 코어 패키지 추가 설치
+      - name: Create Isolated Virtual Environment & Install Server Packages
         run: |
           python -m venv .venv_ai_agent
           .venv_ai_agent/bin/pip install --upgrade pip
-          # 외부 API 호출용 urllib3 및 OpenAPI 규격 서버 구동용 fastapi, uvicorn 설치
-          .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn
+          # OpenAPI 서버 인프라 구축용 핵심 의존성 패키지 설치
+          .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn httpx
 
-      - name: Deploy Offline Virtual Agent Engine
+      # 6. 오프라인 가상 에이전트 및 서비스 배포 소스코드 빌드
+      - name: Deploy Offline Virtual Agent Engine & Server Resources
         shell: bash
         run: |
           mkdir -p .venv_ai_agent/agent_core
@@ -111,12 +112,14 @@ jobs:
               raw_data = fetch_security_database()
               print("[Virtual Agent] 데이터 파싱 및 타겟 디렉토리 리소스 분배를 시작합니다.")
               
+              # 물리적 추가 디렉토리 구조 격리 엔지니어링
               os.makedirs("generated/security_reports", exist_ok=True)
               os.makedirs("generated/ai_configs/claude", exist_ok=True)
               os.makedirs("generated/ai_configs/gemini", exist_ok=True)
-              os.makedirs("generated/openapi", exist_ok=True) # OpenAPI 디렉토리 추가
+              os.makedirs("generated/openapi", exist_ok=True)
+              os.makedirs("generated/server", exist_ok=True) # 파이썬 프로덕션 서버 디렉토리 추가
               
-              # 파일 1: 통합 가상 에이전트 종합 레포트 작성
+              # 리소스 1: 통합 가상 에이전트 종합 레포트 작성
               with open("generated/security_reports/AI_OFFLINE_FIX_GUIDE.md", "w", encoding="utf-8") as f:
                   f.write("# 🛡️ AI Virtual Agent Offline Security Report\n\n")
                   f.write("본 리포트는 API Key 연동 없이 가상 에이전트에 내장된 로컬 정적 규칙 데이터 및 OWASP 마스터 데이터베이스를 기반으로 동적 생성되었습니다.\n\n")
@@ -127,13 +130,13 @@ jobs:
                       f.write("## 2. 참조된 오프라인 위협 가이드라인 원본 소스\n")
                       f.write(raw_data[:2000] + "\n\n... (이하 하위 데이터 에이전트 내부 캐싱 처리됨) ...\n")
 
-              # 파일 2: Claude 컨텍스트용 전용 인프라 설정 데이터 반영
+              # 리소스 2: Claude 컨텍스트용 전용 인프라 설정 데이터 반영
               with open("generated/ai_configs/claude/system_prompt.txt", "w", encoding="utf-8") as f:
                   f.write("Role: Expert Anthropic DevSecOps Agent\n")
                   f.write("Context: Python Large-scale Data Center Infrastructure Scan Rules\n")
                   f.write("Rules: Strict compliance with injection defense and credential isolation.\n")
 
-              # 파일 3: Gemini 지식 베이스용 필수 가이드라인 반영
+              # 리소스 3: Gemini 지식 베이스용 필수 가이드라인 반영
               with open("generated/ai_configs/gemini/context_data.json", "w", encoding="utf-8") as f:
                   config_payload = {
                       "engine_mode": "offline_agent",
@@ -145,7 +148,7 @@ jobs:
                   }
                   json.dump(config_payload, f, indent=2, ensure_ascii=False)
 
-              # 파일 4: OpenAPI Mock 서버/사양 검증용 템플릿 생성
+              # 리소스 4: OpenAPI 규격 데이터 세부 구성
               openapi_spec = {
                   "openapi": "3.0.0",
                   "info": {
@@ -180,27 +183,74 @@ jobs:
               with open("generated/openapi/openapi_spec.json", "w", encoding="utf-8") as f:
                   json.dump(openapi_spec, f, indent=2, ensure_ascii=False)
 
-              # 파일 5: 루트 및 개별 디렉토리에 범용 가상환경 템플릿 배포
+              # 리소스 5: 배포 자동화를 위한 실제 배포용 파이썬 FastAPI 서버 소스코드 원본 작성
+              server_code = """import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI(
+    title="Offline AI Agent Security API",
+    version="1.0.0",
+    description="배포 및 실시간 상태 검증용 가상 서버 컨텍스트"
+)
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "agent": "offline_virtual_agent_v1"}
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to AI Virtual Agent Enterprise Deployment Server"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+"""
+              with open("generated/server/main.py", "w", encoding="utf-8") as f:
+                  f.write(server_code)
+
+              # 리소스 6: 루트 및 개별 디렉토리에 범용 가상환경 템플릿 배포
               with open("generated/.env.example", "w", encoding="utf-8") as f:
                   f.write("# Environment template injected by AI offline agent\n")
                   f.write("ENV=production\n")
                   f.write("LOG_LEVEL=WARNING\n")
                   f.write("TOKEN_LESS_MODE=TRUE\n")
 
-              print("[Virtual Agent] 모든 AI별 세부 디렉토리 및 OpenAPI 데이터 배포가 완료되었습니다.")
+              print("[Virtual Agent] 모든 AI별 세부 디렉토리 및 배포용 웹 서버 소스 빌드가 완료되었습니다.")
 
           if __name__ == "__main__":
               run_agent()
           EOF
 
-      # 6. 에이전트 가동 및 파일 생성 실행
+      # 7. 에이전트 가동 및 파일 시스템 생성 반영
       - name: Execute Offline AI Virtual Agent via Venv Path
         shell: bash
         run: |
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
-      # 7. 변경 리소스 자동 커밋 및 푸시
-      - name: Commit & Push Generated Resources
+      # 8. 파이썬 OpenAPI 웹 서버 프로덕션 배포 및 라이브 헬스체크 검증 수행
+      - name: Deploy Python OpenAPI Server & Validate Active Deployment
+        shell: bash
+        run: |
+          echo "[Deployment] 파이썬 OpenAPI 서버 백그라운드 배포 구동을 시작합니다..."
+          # 생성된 서버 소스코드를 가상환경 실행기 기반 백그라운드로 구동
+          .venv_ai_agent/bin/python generated/server/main.py &
+          
+          # 서버 초기 부팅 대기 시간 확보
+          sleep 3
+          
+          echo "[Deployment] 배포된 로컬 OpenAPI API 엔드포인트 응답 테스트를 수행합니다."
+          # 배포 가용성 원격 체크 검증 완료 처리
+          response=$(curl -s http://127.0.0.1:8000/health)
+          echo "서버 실시간 가동 응답 데이터: $response"
+          
+          if [[ "$response" == *'"status":"healthy"'* ]]; then
+            echo "[SUCCESS] OpenAPI 파이썬 인프라 웹 서버 배포가 정상 승인되었습니다."
+          else
+            echo "[ERROR] 서버 가동 실패 혹은 정상적인 응답이 반환되지 않았습니다."
+            exit 1
+          fi
+
+      # 9. 변경 리소스 및 배포 인프라 자원 자동 커밋 및 푸시
+      - name: Commit & Push Generated Resources & Server Deployments
         if: github.event_name != 'pull_request'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -208,5 +258,5 @@ jobs:
           
           if [ -d "generated" ]; then
             git add generated/
-            git diff-index --quiet HEAD || (git commit -m "chore: 오프라인 AI 가상 에이전트 각 디렉토리 데이터, OpenAPI 서버 및 필수 리소스 생성 반영 [skip ci]" && git push)
+            git diff-index --quiet HEAD || (git commit -m "chore: 오프라인 AI 가상 에이전트 각 디렉토리 데이터, OpenAPI 실서버 소스 코드 및 배포 리소스 반영 [skip ci]" && git push)
           fi
