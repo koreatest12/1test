@@ -2,9 +2,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, constr
 
-app = FastAPI(title='Isolated Enterprise Security Node', version='1.2.0')
+app = FastAPI(title='Isolated Enterprise Security Node', version='1.3.0')
 
-# CodeQL 대비: Pydantic을 활용한 명시적 타입 바인딩 및 입력 글자수(도스 공격 방어) 리미트 설정
 class QueryModel(BaseModel):
     rule_id: constr(min_length=3, max_length=50, pattern=r'^SEC-[0-9]+$')
 
@@ -14,7 +13,6 @@ def security_node_status():
 
 @app.post('/api/v1/security/inspect')
 def inspect_rule(query: QueryModel):
-    # 안전한 룩업 테이블 구조 배치 (보안 취약점 조작 완전 격리)
     mock_db = {'SEC-101': 'Injection Defense Triggered', 'SEC-102': 'Broken Auth Patched'}
     result = mock_db.get(query.rule_id)
     if not result:
