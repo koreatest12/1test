@@ -4,37 +4,5 @@
     "title": "Enterprise Offline AI Agent Cluster API",
     "version": "1.2.0",
     "description": "Node.js 24 기반 분산 멀티 웹 서버 및 데이터 이관 시스템용 API 사양"
-  },
-  "paths": {
-    "/health": {
-      "get": {
-        "summary": "게이트웨이 서버 헬스체크",
-        "responses": {
-          "200": {
-            "description": "정상"
-          }
-        }
-      }
-    },
-    "/api/v1/security/status": {
-      "get": {
-        "summary": "독립 보안 안전진단 모듈 상태조회",
-        "responses": {
-          "200": {
-            "description": "정상"
-          }
-        }
-      }
-    },
-    "/api/v1/migrate/transfer": {
-      "post": {
-        "summary": "서버 간 대량 데이터 세그먼트 고속 이관 라우팅",
-        "responses": {
-          "200": {
-            "description": "이관 처리 성공"
-          }
-        }
-      }
-    }
   }
 }

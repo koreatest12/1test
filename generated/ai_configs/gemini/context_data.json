@@ -5,8 +5,5 @@
     "codeql-v4"
   ],
   "runtime_environment": "node-24-core",
-  "security_level": "extended-quality",
-  "auto_generated_resources": [
-    "generated/security_reports/AI_OFFLINE_FIX_GUIDE.md"
-  ]
+  "security_level": "extended-quality"
 }
