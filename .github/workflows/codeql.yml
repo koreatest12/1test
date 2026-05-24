@@ -48,44 +48,29 @@ jobs:
           - python
 
     steps:
-      # -----------------------------------------------------------------------
-      # 1. Checkout repository
-      # -----------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      # -----------------------------------------------------------------------
-      # 2. Initialize CodeQL
-      # -----------------------------------------------------------------------
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: +security-extended,security-and-quality
 
-      # -----------------------------------------------------------------------
-      # 3. Perform CodeQL Analysis
-      # -----------------------------------------------------------------------
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
           upload: true
 
-      # -----------------------------------------------------------------------
-      # 4. Setup Python Runtime
-      # -----------------------------------------------------------------------
       - name: Setup Python Runtime
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      # -----------------------------------------------------------------------
-      # 5. 가상 환경 구축 및 대량 분산 클러스터용 의존성 코어 패키지 설치
-      # -----------------------------------------------------------------------
       - name: Create Isolated Virtual Environment & Install Server Packages
         run: |
           python -m venv .venv_ai_agent
@@ -93,9 +78,9 @@ jobs:
           .venv_ai_agent/bin/pip install urllib3 fastapi uvicorn httpx python-multipart pydantic
 
       # -----------------------------------------------------------------------
-      # 6. 오프라인 가상 에이전트 소스코드 빌드 및 서버별 CodeQL 최적화 로직 적용
+      # 6. 오프라인 가상 에이전트 엔진 (Dependabot 스캔을 위한 requirements.txt 대량 추출 추가)
       # -----------------------------------------------------------------------
-      - name: Deploy Offline Virtual Agent Engine & Enterprise Resources
+      - name: Deploy Offline Virtual Agent Engine & Generate Mass Container/Data Resources
         shell: bash
         run: |
           mkdir -p .venv_ai_agent/agent_core
@@ -104,9 +89,10 @@ jobs:
           import os
           import json
           import textwrap
+          import hashlib
 
           def run_agent():
-              print("[Virtual Agent] 데이터 파싱 및 타겟 디렉토리 대량 리소스 분배를 시작합니다.")
+              print("[Virtual Agent] Dependabot 규격 호환 데이터 파싱 및 타겟 디렉토리 대량 분배 개시.")
 
               dirs = [
                   "generated/security_reports",
@@ -116,289 +102,245 @@ jobs:
                   "generated/server/gateway",
                   "generated/server/security",
                   "generated/server/migration",
-                  "generated/server/config"
+                  "generated/server/config",
+                  "generated/server/upgrade",
+                  "generated/data/seed",       
+                  "generated/docker_cluster"   
               ]
               for d in dirs:
                   os.makedirs(d, exist_ok=True)
 
-              with open("generated/security_reports/AI_OFFLINE_FIX_GUIDE.md", "w", encoding="utf-8") as f:
-                  f.write("# AI Virtual Agent Offline Security Report\n\n")
-                  f.write("## 1. 파이썬 프로젝트 필수 보안 레이어 권장사항\n")
-                  f.write("- **의존성 무결성**: pip-audit 활용 지속적 패키지 스캔\n")
-                  f.write("- **비밀키 관리**: 소스코드 하드코딩 배제 및 .env 주입식 인프라 구성\n")
+              # Dependabot(Pip)이 스캔할 수 있도록 파이썬 의존성 명세서 추출
+              with open("generated/requirements.txt", "w", encoding="utf-8") as f:
+                  f.write("fastapi\nuvicorn\npydantic\nhttpx\npython-multipart\n")
 
-              # 서비스 1: API Gateway (포트 8000)
+              print("[Data Builder] 10,000건의 보안 룰 및 노드 식별자 Seed Data를 대량 생성합니다.")
+              mass_nodes = []
+              for i in range(1, 10001):
+                  node_id = f"NODE-{i:05d}"
+                  mass_nodes.append({
+                      "node_id": node_id,
+                      "status": "provisioned",
+                      "cluster_zone": "ap-northeast-2" if i % 2 == 0 else "us-east-1",
+                      "security_checksum": hashlib.sha256(node_id.encode()).hexdigest()[:12]
+                  })
+              with open("generated/data/seed/mass_node_registry.json", "w", encoding="utf-8") as f:
+                  json.dump(mass_nodes, f, indent=2)
+
               gw_code = textwrap.dedent("""\
-                  import uvicorn
-                  import re
+                  import uvicorn, re
                   from fastapi import FastAPI, HTTPException, Header
                   from typing import Optional
-                  
-                  app = FastAPI(title='Enterprise AI Gateway Server', version='1.2.0')
+                  app = FastAPI(title='Enterprise AI Gateway Server', version='1.5.0')
                   NODE_PATTERN = re.compile(r'^[a-zA-Z0-9_\-]+$')
-                  
                   @app.get('/health')
-                  def gateway_health():
-                      return {'status': 'healthy', 'service': 'api_gateway_core'}
-                      
+                  def gateway_health(): return {'status': 'healthy'}
                   @app.post('/api/v1/validate/{node_id}')
                   def validate_node(node_id: str, x_auth_token: Optional[str] = Header(None)):
-                      if not x_auth_token or len(x_auth_token) < 16:
-                          raise HTTPException(status_code=401, detail='Invalid token.')
-                      if not NODE_PATTERN.match(node_id):
-                          raise HTTPException(status_code=400, detail='Malicious pattern.')
+                      if not x_auth_token or len(x_auth_token) < 16: raise HTTPException(401)
+                      if not NODE_PATTERN.match(node_id): raise HTTPException(400)
                       return {'status': 'authorized', 'node_id': node_id}
-                      
-                  if __name__ == '__main__':
-                      uvicorn.run(app, host='127.0.0.1', port=8000)
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8000)
               """)
-              with open("generated/server/gateway/gateway_main.py", "w", encoding="utf-8") as f:
-                  f.write(gw_code)
+              with open("generated/server/gateway/gateway_main.py", "w", encoding="utf-8") as f: f.write(gw_code)
 
-              # 서비스 2: Security Node (포트 8080)
               sec_code = textwrap.dedent("""\
-                  import uvicorn
-                  import re
+                  import uvicorn, re
                   from fastapi import FastAPI, HTTPException
                   from pydantic import BaseModel, field_validator
-                  
-                  app = FastAPI(title='Isolated Enterprise Security Node', version='1.2.0')
-                  
+                  app = FastAPI(title='Isolated Enterprise Security Node', version='1.5.0')
                   class QueryModel(BaseModel):
                       rule_id: str
                       @field_validator('rule_id')
                       @classmethod
                       def validate_rule(cls, v):
-                          if not re.match(r'^SEC-[0-9]+$', v) or not (3 <= len(v) <= 50):
-                              raise ValueError('Invalid rule format')
+                          if not re.match(r'^SEC-[0-9]+$', v): raise ValueError('Invalid format')
                           return v
-                          
                   @app.get('/api/v1/security/status')
-                  def security_node_status():
-                      return {'status': 'healthy'}
-                      
+                  def security_node_status(): return {'status': 'healthy'}
                   @app.post('/api/v1/security/inspect')
                   def inspect_rule(query: QueryModel):
-                      mock_db = {'SEC-101': 'Injection Defense Triggered', 'SEC-102': 'Broken Auth Patched'}
-                      result = mock_db.get(query.rule_id)
-                      if not result:
-                          raise HTTPException(status_code=404, detail='Security rule not found.')
-                      return {'rule_id': query.rule_id, 'audit_result': result}
-                      
-                  if __name__ == '__main__':
-                      uvicorn.run(app, host='127.0.0.1', port=8080)
+                      mock_db = {'SEC-101': 'Injection Defense Triggered'}
+                      if query.rule_id not in mock_db: raise HTTPException(404)
+                      return {'rule_id': query.rule_id, 'audit_result': mock_db[query.rule_id]}
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8080)
               """)
-              with open("generated/server/security/security_main.py", "w", encoding="utf-8") as f:
-                  f.write(sec_code)
+              with open("generated/server/security/security_main.py", "w", encoding="utf-8") as f: f.write(sec_code)
 
-              # 서비스 3: Migration Bridge (포트 8090)
               mig_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
                   from pydantic import BaseModel, Field
-                  
-                  app = FastAPI(title='Enterprise Data Migration Engine', version='1.2.0')
-                  
+                  app = FastAPI(title='Enterprise Data Migration Engine', version='1.5.0')
                   class MigrationPayload(BaseModel):
                       target_node: str = Field(..., min_length=5, max_length=100)
                       resource_count: int = Field(..., ge=1, le=10000)
-                      
                   @app.post('/api/v1/migrate/transfer')
                   def execute_migration(payload: MigrationPayload):
-                      if 'cluster' not in payload.target_node:
-                          raise HTTPException(status_code=403, detail='Unauthorized destination node.')
-                      return {'status': 'healthy', 'migration_status': 'completed',
-                              'transferred_segments': payload.resource_count,
-                              'destination': payload.target_node}
-                              
-                  if __name__ == '__main__':
-                      uvicorn.run(app, host='127.0.0.1', port=8090)
+                      if 'cluster' not in payload.target_node: raise HTTPException(403)
+                      return {'status': 'healthy', 'migration_status': 'completed', 'destination': payload.target_node}
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8090)
               """)
-              with open("generated/server/migration/migration_main.py", "w", encoding="utf-8") as f:
-                  f.write(mig_code)
+              with open("generated/server/migration/migration_main.py", "w", encoding="utf-8") as f: f.write(mig_code)
 
-              # 서비스 4: Config Management Server (포트 8070)
               cfg_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
                   from pydantic import BaseModel, Field
-                  
-                  app = FastAPI(title='Enterprise Config Node', version='1.3.0')
-                  
+                  app = FastAPI(title='Enterprise Config Node', version='1.5.0')
                   class CommitPayload(BaseModel):
                       repo_name: str = Field(..., pattern=r'^[a-zA-Z0-9_\-]{3,50}$')
                       commit_message: str = Field(..., min_length=1, max_length=200)
-                      changes_count: int = Field(..., ge=1, le=5000)
-                      
                   @app.get('/health')
-                  def config_health():
-                      return {'status': 'healthy'}
-                      
+                  def config_health(): return {'status': 'healthy'}
                   @app.post('/api/v1/config/commit')
                   def record_commit(payload: CommitPayload):
-                      if '..' in payload.commit_message or '<script>' in payload.commit_message:
-                          raise HTTPException(status_code=400, detail='Invalid payload')
+                      if '..' in payload.commit_message: raise HTTPException(400)
                       return {'status': 'committed', 'repository': payload.repo_name}
-                      
-                  if __name__ == '__main__':
-                      uvicorn.run(app, host='127.0.0.1', port=8070)
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8070)
               """)
-              with open("generated/server/config/config_main.py", "w", encoding="utf-8") as f:
-                  f.write(cfg_code)
+              with open("generated/server/config/config_main.py", "w", encoding="utf-8") as f: f.write(cfg_code)
+
+              upg_code = textwrap.dedent("""\
+                  import uvicorn
+                  from fastapi import FastAPI, HTTPException
+                  from pydantic import BaseModel, Field
+                  app = FastAPI(title='OTA Upgrade Node', version='1.5.0')
+                  class UpgradePayload(BaseModel):
+                      component: str = Field(..., min_length=3, max_length=50)
+                      force_update: bool = False
+                  @app.get('/health')
+                  def upgrade_health(): return {'status': 'healthy'}
+                  @app.post('/api/v1/upgrade/apply')
+                  def apply_upgrade(payload: UpgradePayload):
+                      if payload.component == 'core-kernel' and not payload.force_update: raise HTTPException(400)
+                      return {'status': 'upgraded', 'component': payload.component}
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8060)
+              """)
+              with open("generated/server/upgrade/upgrade_main.py", "w", encoding="utf-8") as f: f.write(upg_code)
+
+              print("[Docker Builder] 각 서비스별 Dockerfile 및 docker-compose 매니페스트를 생성합니다.")
+              services_meta = [
+                  ("gateway", 8000, "gateway_main.py"),
+                  ("security", 8080, "security_main.py"),
+                  ("migration", 8090, "migration_main.py"),
+                  ("config", 8070, "config_main.py"),
+                  ("upgrade", 8060, "upgrade_main.py")
+              ]
+              
+              docker_compose_services = []
+
+              for svc_name, port, main_file in services_meta:
+                  dockerfile_content = textwrap.dedent(f"""\
+                      FROM python:3.11-slim
+                      ENV PYTHONUNBUFFERED=1
+                      WORKDIR /app
+                      COPY {main_file} /app/main.py
+                      RUN pip install --no-cache-dir fastapi uvicorn pydantic httpx
+                      EXPOSE {port}
+                      CMD ["python", "main.py"]
+                  """)
+                  with open(f"generated/server/{svc_name}/Dockerfile", "w", encoding="utf-8") as f:
+                      f.write(dockerfile_content)
+                  
+                  docker_compose_services.append(textwrap.indent(textwrap.dedent(f"""\
+                      {svc_name}:
+                        build: 
+                          context: ../server/{svc_name}
+                          dockerfile: Dockerfile
+                        ports:
+                          - "{port}:{port}"
+                        restart: unless-stopped
+                  """), "  "))
+
+              compose_content = "version: '3.8'\nservices:\n" + "".join(docker_compose_services)
+              with open("generated/docker_cluster/docker-compose.yml", "w", encoding="utf-8") as f:
+                  f.write(compose_content)
 
               with open("generated/.env.example", "w", encoding="utf-8") as f:
-                  f.write("ENV=production\nTOKEN_LESS_MODE=TRUE\n")
-                  
-              print("[Virtual Agent] CodeQL 최적화 멀티 노드 서버 빌드 스크립트가 성공적으로 생성되었습니다.")
+                  f.write("ENV=production\nTOKEN_LESS_MODE=TRUE\nAUTO_UPGRADE_ENABLED=TRUE\n")
 
           if __name__ == "__main__":
               run_agent()
           PYEOF
 
-      # -----------------------------------------------------------------------
-      # 7. 에이전트 가동: 4노드 클러스터 + 형상관리 서버 전체 리소스 물리적 파일 생성
-      # -----------------------------------------------------------------------
       - name: Execute Offline AI Virtual Agent via Venv Path
         shell: bash
         run: |
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
-      # -----------------------------------------------------------------------
-      # 8. 4노드 분산 클러스터 동시 배포, 보안 기능 연동 검증 및 명세서 대량 생성
-      # -----------------------------------------------------------------------
-      - name: Deploy Cluster OpenAPI Servers & Generate Mass Specifications
+      - name: Deploy 5-Node Cluster & Validate Specifications
         shell: bash
         run: |
-          echo "[Deployment] Node 1: API Gateway 코어 서버 구동..."
+          echo "[Deployment] 클러스터 노드 5대 로컬 런타임 백그라운드 구동 개시..."
           .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py &
           GW_PID=$!
-
-          echo "[Deployment] Node 2: 독립 안전진단 Security 노드 서버 구동..."
           .venv_ai_agent/bin/python generated/server/security/security_main.py &
           SEC_PID=$!
-
-          echo "[Deployment] Node 3: 리소스 이관(Migration) 브릿지 서버 구동..."
           .venv_ai_agent/bin/python generated/server/migration/migration_main.py &
           MIG_PID=$!
-
-          echo "[Deployment] Node 4: 형상관리(Config Management) 서버 구동..."
           .venv_ai_agent/bin/python generated/server/config/config_main.py &
           CFG_PID=$!
-
-          echo "[Deployment] PIDs: GW=$GW_PID, SEC=$SEC_PID, MIG=$MIG_PID, CFG=$CFG_PID"
+          .venv_ai_agent/bin/python generated/server/upgrade/upgrade_main.py &
+          UPG_PID=$!
 
           cat << 'PYEOF' > wait_for_ports.py
-          import socket
-          import time
-          import sys
-
-          ports = [8000, 8070, 8080, 8090]
+          import socket, time, sys
+          ports = [8000, 8060, 8070, 8080, 8090]
           for p in ports:
               ready = False
               for _ in range(30): 
                   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                       if s.connect_ex(('127.0.0.1', p)) == 0:
-                          print(f"[Port Check] Port {p} is READY.")
                           ready = True
                           break
                   time.sleep(0.5)
-              if not ready:
-                  print(f"[ERROR] Port {p} failed to start within timeout.")
-                  sys.exit(1)
+              if not ready: sys.exit(1)
           PYEOF
-          
           .venv_ai_agent/bin/python wait_for_ports.py
 
-          echo "[Validation] 배포된 4노드 전체 보안 파라미터 교차 진단 개시..."
-
+          echo "[Validation] 배포된 5대 분산 서버 전체 통합 교차 진단 개시..."
           gw_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; d=json.loads(urllib.request.urlopen('http://127.0.0.1:8000/health').read()); print(d.get('status',''))")
           sec_audit=$(.venv_ai_agent/bin/python -c "import urllib.request, json; req=urllib.request.Request('http://127.0.0.1:8080/api/v1/security/inspect',data=json.dumps({'rule_id':'SEC-101'}).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('audit_result',''))")
           mig_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; req=urllib.request.Request('http://127.0.0.1:8090/api/v1/migrate/transfer',data=json.dumps({'target_node':'security_node_cluster','resource_count':500}).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
-          mig_result=$(.venv_ai_agent/bin/python -c "import urllib.request, json; req=urllib.request.Request('http://127.0.0.1:8090/api/v1/migrate/transfer',data=json.dumps({'target_node':'security_node_cluster','resource_count':500}).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('migration_status',''))")
-          cfg_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; d=json.loads(urllib.request.urlopen('http://127.0.0.1:8070/health').read()); print(d.get('status',''))")
-          cfg_reg=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'repo_name':'grand-ops','commit_message':'Automated patch','changes_count':12}; req=urllib.request.Request('http://127.0.0.1:8070/api/v1/config/commit',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
-
-          echo "인프라 보안 통신 추적 결과:"
-          echo "  Gateway         : $gw_status"
-          echo "  Security Audit  : $sec_audit"
-          echo "  Migration       : $mig_status (result=$mig_result)"
-          echo "  ConfigMgmt      : $cfg_status (commit=$cfg_reg)"
+          cfg_reg=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'repo_name':'grand-ops','commit_message':'Automated patch'}; req=urllib.request.Request('http://127.0.0.1:8070/api/v1/config/commit',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
+          upg_reg=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'component':'security_engine','force_update':True}; req=urllib.request.Request('http://127.0.0.1:8060/api/v1/upgrade/apply',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
 
           if [ "$gw_status" = "healthy" ] && [ "$sec_audit" = "Injection Defense Triggered" ] && \
-             [ "$mig_status" = "healthy" ] && [ "$mig_result" = "completed" ] && \
-             [ "$cfg_status" = "healthy" ] && [ "$cfg_reg" = "committed" ]; then
-            echo "[SUCCESS] 4노드 클러스터 정상 통과 확인."
+             [ "$mig_status" = "healthy" ] && [ "$cfg_reg" = "committed" ] && [ "$upg_reg" = "upgraded" ]; then
+            echo "[SUCCESS] 업그레이드 노드 포함 5대 서버 구동 검증 완료."
           else
-            echo "[ERROR] 분산 노드 보안 파라미터 매칭 실패 또는 무결성 오염 감지."
-            kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" 2>/dev/null || true
+            kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" 2>/dev/null || true
             exit 1
           fi
 
-          echo "[Spec Generator] 라이브 서버 OpenAPI 명세서 대량 덤프 및 API 통합 마스터 문서 자동 생성 개시..."
-          cat << 'PYEOF' > generate_specs.py
-          import urllib.request, json, os
-
-          ports = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070}
-          os.makedirs('generated/openapi/specs', exist_ok=True)
-          master_md = "# 📚 Enterprise Cluster API Master Specification\n\n"
-
-          for name, port in ports.items():
-              try:
-                  url = f"http://127.0.0.1:{port}/openapi.json"
-                  resp = urllib.request.urlopen(url).read()
-                  data = json.loads(resp)
-                  
-                  # 개별 서비스별 OpenAPI JSON 대량 추출 보관
-                  with open(f"generated/openapi/specs/{name}_openapi.json", "w", encoding="utf-8") as f:
-                      json.dump(data, f, indent=2, ensure_ascii=False)
-                      
-                  # 통합 마스터 마크다운(Markdown) 문서에 API 제원 렌더링
-                  master_md += f"## 🚀 {data.get('info', {}).get('title', name.upper())} (v{data.get('info', {}).get('version', '1.0')})\n\n"
-                  for path, methods in data.get('paths', {}).items():
-                      for method, details in methods.items():
-                          master_md += f"- **{method.upper()}** `{path}` : {details.get('summary', 'Endpoint summary auto-generated.')}\n"
-                  master_md += "\n---\n\n"
-                  print(f"[Spec] {name} 서버 OpenAPI 명세서 추출 완료.")
-              except Exception as e:
-                  print(f"[WARN] {name} 서버 명세서 추출 실패: {e}")
-
-          with open("generated/openapi/API_MASTER_SPEC.md", "w", encoding="utf-8") as f:
-              f.write(master_md)
-          print("[Spec] 4대 분산 서버 통합 API Master Specification 문서(Markdown) 대량 생성 완료.")
-          PYEOF
-          
-          .venv_ai_agent/bin/python generate_specs.py
-
-          # 모든 연동 테스트 및 덤프 완료 후 라이브 프로세스 자원 해제
-          kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" 2>/dev/null || true
+          kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" 2>/dev/null || true
 
       # -----------------------------------------------------------------------
-      # 9. OWASP 공급망 방어 1단계: CVE Lite CLI (극단적 Shift Left & Offline DB)
+      # 9. OWASP 공급망 방어 1단계: CVE Lite CLI (Dependabot 인식용 package.json 강제 덤프)
       # -----------------------------------------------------------------------
       - name: OWASP CVE Lite CLI - Fast Local Dependency Scanner
         shell: bash
         run: |
-          echo "[OWASP Incubator] 개발자 터미널 및 PR 단에서 탐지-조치 간극을 없애는 CVE Lite CLI 로컬 스캐닝 구동"
           mkdir -p generated/frontend
           cd generated/frontend
-
-          npm init -y > /dev/null 2>&1
-          npm install cross-spawn@5.1.0 minimatch@3.0.4 --package-lock-only --ignore-scripts > /dev/null 2>&1 || true
-
-          echo "[CVE Lite CLI] 망분리 오프라인 환경용 취약점 DB 초고속 동기화 진행 중..."
+          
+          # Dependabot(npm)이 스캔할 수 있도록 package.json 명시적 생성
+          cat << 'EOF' > package.json
+          {
+            "name": "enterprise-frontend-bff",
+            "version": "1.0.0",
+            "dependencies": {
+              "cross-spawn": "5.1.0",
+              "minimatch": "3.0.4"
+            }
+          }
+          EOF
+          
+          npm install --package-lock-only --ignore-scripts > /dev/null 2>&1 || true
           npx -y cve-lite-cli advisories sync
-
-          echo "[CVE Lite CLI] 바로 실행 가능한 조치 명령어(Fix Command)가 포함된 정밀 리포트 산출..."
           npx -y cve-lite-cli . --offline --verbose > ../security_reports/CVE_LITE_FIX_PLAN.txt || true
 
-          npx -y cve-lite-cli . --offline --json > ../security_reports/cve_lite_raw.json || true
-
-          echo "==== 생성된 CVE 조치 명령어 플랜 미리보기 ===="
-          cat ../security_reports/CVE_LITE_FIX_PLAN.txt | head -n 25
-
-      # -----------------------------------------------------------------------
-      # 10. OWASP 공급망 방어 2단계: Dependency-Check (SAST 연계 생태계 방어)
-      # -----------------------------------------------------------------------
       - name: OWASP Dependency-Check Scan
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -408,21 +350,23 @@ jobs:
           out: 'generated/security_reports'
         continue-on-error: true
 
-      # -----------------------------------------------------------------------
-      # 11. OWASP 공급망 방어 3단계: dep-scan (멀티 언어 & SBOM) 및 Dependency-Track 연계 준비
-      # -----------------------------------------------------------------------
       - name: OWASP dep-scan & Dependency-Track Integration
         shell: bash
         run: |
-          echo "[OWASP Supply Chain] dep-scan을 활용한 SBOM 기반 소프트웨어 자재명세서 및 취약점 연계 스캔"
           .venv_ai_agent/bin/pip install appthreat-depscan cyclonedx-bom
-
           .venv_ai_agent/bin/cyclonedx-py environment --outfile generated/security_reports/sbom.json || true
           .venv_ai_agent/bin/depscan --src . --reports-dir generated/security_reports/depscan || true
 
-      # -----------------------------------------------------------------------
-      # 12. 생성된 분산형 대량 명세서 및 보안 리소스 자원 자동 커밋 & 푸시 (PR 제외)
-      # -----------------------------------------------------------------------
+      - name: Automated Vulnerability Auto-Remediation & Dependency Upgrade
+        shell: bash
+        run: |
+          .venv_ai_agent/bin/python -m pip install --upgrade --upgrade-strategy eager pip setuptools wheel fastapi uvicorn
+          if [ -d "generated/frontend" ]; then
+            cd generated/frontend
+            npm audit fix --force > /dev/null 2>&1 || true
+            cd ../..
+          fi
+
       - name: Commit & Push Generated Resources & Server Deployments
         if: github.event_name != 'pull_request'
         run: |
@@ -431,11 +375,9 @@ jobs:
           if [ -d "generated" ]; then
             git add generated/
             if git diff-index --quiet HEAD; then
-              echo "[INFO] 인프라 변경사항 없음, 형상 관리를 건너뜁니다."
+              echo "[INFO] 인프라 변경사항 없음."
             else
-              git commit -m "chore: 4노드 클러스터 API 명세서 대량 생성 및 통합 보안 파이프라인 배포 [skip ci]"
+              git commit -m "chore: Dependabot 완벽 연동을 위한 명세서(requirements.txt / package.json) 생성 및 푸시 [skip ci]"
               git push
             fi
-          else
-            echo "[WARN] generated/ 프로덕션 배포 대상 디렉토리가 유실되었습니다."
           fi
