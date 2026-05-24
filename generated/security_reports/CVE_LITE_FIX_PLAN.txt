@@ -8,7 +8,7 @@ Fast. Local. Developer-first.
 
 Offline mode: enabled (no external advisory calls will be made)
 Advisory source: local advisory database (/home/runner/.cache/cve-lite/advisories.db)
-Advisory DB freshness: just synced (2026-05-24T01:23:05.398Z)
+Advisory DB freshness: just synced (2026-05-24T02:30:38.238Z)
 Parsed 12 packages from package-lock (package-lock.json)
 ✗ Found 2 packages (5 CVEs) with known OSV matches from package-lock
 ┌──────────┬──────┬────────┬─────┬─────────┐

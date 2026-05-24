@@ -1,4 +1,4 @@
-# 📚 Enterprise 5-Node Cluster API Master Specification
+# 📚 Enterprise 6-Node Cluster API Master Specification
 
 ## 🚀 Enterprise AI Gateway Server (v1.5.0)
 
@@ -31,6 +31,13 @@
 
 - **GET** `/health` : Upgrade Health
 - **POST** `/api/v1/upgrade/apply` : Apply Upgrade
+
+---
+
+## 🚀 Enterprise Fencing Service (v1.5.0)
+
+- **GET** `/health` : Fencing Health
+- **POST** `/api/v1/fencing/apply` : Apply Fence
 
 ---
 

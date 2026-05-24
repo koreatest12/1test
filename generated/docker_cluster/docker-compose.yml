@@ -35,3 +35,10 @@ services:
     ports:
       - "8060:8060"
     restart: unless-stopped
+  fencing:
+    build: 
+      context: ../server/fencing
+      dockerfile: Dockerfile
+    ports:
+      - "8050:8050"
+    restart: unless-stopped
