@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cross-spawn": "^5.1.0",
+    "cross-spawn": "^7.0.6",
     "minimatch": "^3.0.4"
   }
 }
