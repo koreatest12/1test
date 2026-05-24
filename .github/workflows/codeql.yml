@@ -94,7 +94,6 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 6. 오프라인 가상 에이전트 소스코드 빌드 및 서버별 CodeQL 최적화 로직 적용
-      #    - CodeQL py/unused-import 경고 원천 차단: 모든 미사용 import 제거 완료
       # -----------------------------------------------------------------------
       - name: Deploy Offline Virtual Agent Engine & Enterprise Resources
         shell: bash
@@ -218,7 +217,7 @@ jobs:
               with open("generated/server/migration/migration_main.py", "w", encoding="utf-8") as f:
                   f.write(mig_code)
 
-              # 서비스 4: Config Management Server (포트 8070) - py/unused-import 경고 해결 (import re 제거)
+              # 서비스 4: Config Management Server (포트 8070)
               cfg_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
@@ -265,9 +264,9 @@ jobs:
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
       # -----------------------------------------------------------------------
-      # 8. 4노드 분산 클러스터 동시 배포 및 전체 보안 기능 연동 검증
+      # 8. 4노드 분산 클러스터 동시 배포, 보안 기능 연동 검증 및 명세서 대량 생성
       # -----------------------------------------------------------------------
-      - name: Deploy Cluster OpenAPI Servers & Validate Multi-Node Activation
+      - name: Deploy Cluster OpenAPI Servers & Generate Mass Specifications
         shell: bash
         run: |
           echo "[Deployment] Node 1: API Gateway 코어 서버 구동..."
@@ -328,13 +327,49 @@ jobs:
           if [ "$gw_status" = "healthy" ] && [ "$sec_audit" = "Injection Defense Triggered" ] && \
              [ "$mig_status" = "healthy" ] && [ "$mig_result" = "completed" ] && \
              [ "$cfg_status" = "healthy" ] && [ "$cfg_reg" = "committed" ]; then
-            echo "[SUCCESS] 모든 4노드 클러스터가 CodeQL 확장 보안 규격을 충족하며 정상 가동되었습니다."
+            echo "[SUCCESS] 4노드 클러스터 정상 통과 확인."
           else
             echo "[ERROR] 분산 노드 보안 파라미터 매칭 실패 또는 무결성 오염 감지."
             kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" 2>/dev/null || true
             exit 1
           fi
 
+          echo "[Spec Generator] 라이브 서버 OpenAPI 명세서 대량 덤프 및 API 통합 마스터 문서 자동 생성 개시..."
+          cat << 'PYEOF' > generate_specs.py
+          import urllib.request, json, os
+
+          ports = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070}
+          os.makedirs('generated/openapi/specs', exist_ok=True)
+          master_md = "# 📚 Enterprise Cluster API Master Specification\n\n"
+
+          for name, port in ports.items():
+              try:
+                  url = f"http://127.0.0.1:{port}/openapi.json"
+                  resp = urllib.request.urlopen(url).read()
+                  data = json.loads(resp)
+                  
+                  # 개별 서비스별 OpenAPI JSON 대량 추출 보관
+                  with open(f"generated/openapi/specs/{name}_openapi.json", "w", encoding="utf-8") as f:
+                      json.dump(data, f, indent=2, ensure_ascii=False)
+                      
+                  # 통합 마스터 마크다운(Markdown) 문서에 API 제원 렌더링
+                  master_md += f"## 🚀 {data.get('info', {}).get('title', name.upper())} (v{data.get('info', {}).get('version', '1.0')})\n\n"
+                  for path, methods in data.get('paths', {}).items():
+                      for method, details in methods.items():
+                          master_md += f"- **{method.upper()}** `{path}` : {details.get('summary', 'Endpoint summary auto-generated.')}\n"
+                  master_md += "\n---\n\n"
+                  print(f"[Spec] {name} 서버 OpenAPI 명세서 추출 완료.")
+              except Exception as e:
+                  print(f"[WARN] {name} 서버 명세서 추출 실패: {e}")
+
+          with open("generated/openapi/API_MASTER_SPEC.md", "w", encoding="utf-8") as f:
+              f.write(master_md)
+          print("[Spec] 4대 분산 서버 통합 API Master Specification 문서(Markdown) 대량 생성 완료.")
+          PYEOF
+          
+          .venv_ai_agent/bin/python generate_specs.py
+
+          # 모든 연동 테스트 및 덤프 완료 후 라이브 프로세스 자원 해제
           kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" 2>/dev/null || true
 
       # -----------------------------------------------------------------------
@@ -386,7 +421,7 @@ jobs:
           .venv_ai_agent/bin/depscan --src . --reports-dir generated/security_reports/depscan || true
 
       # -----------------------------------------------------------------------
-      # 12. 생성된 분산형 대량 리소스 및 배포 자원 자동 커밋 & 푸시 (PR 제외)
+      # 12. 생성된 분산형 대량 명세서 및 보안 리소스 자원 자동 커밋 & 푸시 (PR 제외)
       # -----------------------------------------------------------------------
       - name: Commit & Push Generated Resources & Server Deployments
         if: github.event_name != 'pull_request'
@@ -398,7 +433,7 @@ jobs:
             if git diff-index --quiet HEAD; then
               echo "[INFO] 인프라 변경사항 없음, 형상 관리를 건너뜁니다."
             else
-              git commit -m "chore: CodeQL py/unused-import 취약점 해결 및 클러스터 통합 보안 배포 [skip ci]"
+              git commit -m "chore: 4노드 클러스터 API 명세서 대량 생성 및 통합 보안 파이프라인 배포 [skip ci]"
               git push
             fi
           else
