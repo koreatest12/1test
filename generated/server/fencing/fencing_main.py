@@ -9,6 +9,6 @@ class FenceRule(BaseModel):
 def fencing_health(): return {'status': 'healthy'}
 @app.post('/api/v1/fencing/apply')
 def apply_fence(rule: FenceRule):
-    if rule.target_ip == '127.0.0.1' and rule.action == 'DENY': raise HTTPException(403, detail='Cannot deny localhost')
+    if rule.target_ip == '127.0.0.1' and rule.action == 'DENY': raise HTTPException(403)
     return {'status': 'fenced', 'ip': rule.target_ip, 'action': rule.action}
 if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8050)
