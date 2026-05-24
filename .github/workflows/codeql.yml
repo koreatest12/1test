@@ -46,7 +46,6 @@ jobs:
       matrix:
         language:
           - python
-
     steps:
       # -----------------------------------------------------------------------
       # 1. Checkout repository
@@ -110,8 +109,8 @@ jobs:
 
           def run_agent():
               print("[Virtual Agent] Dependabot 및 Docker 인프라 완벽 대응 리소스 대량 생성을 시작합니다.")
-
-              # 5노드 마이크로서비스 아키텍처 및 데이터 디렉토리 생성
+              
+              # 6노드 마이크로서비스 아키텍처 및 데이터 디렉토리 생성 (Fencing 포함)
               dirs = [
                   "generated/security_reports",
                   "generated/ai_configs/claude",
@@ -122,6 +121,7 @@ jobs:
                   "generated/server/migration",
                   "generated/server/config",
                   "generated/server/upgrade",
+                  "generated/server/fencing",
                   "generated/data/seed",       
                   "generated/docker_cluster"   
               ]
@@ -170,9 +170,10 @@ jobs:
                   json.dump(mass_configs, f, indent=2)
 
               # -----------------------------------------------------------------
-              # [파이썬 서버 코드 생성] 5개 코어 서비스 노드
+              # [파이썬 서버 코드 생성] 6개 코어 서비스 노드 (Fencing 포함)
               # -----------------------------------------------------------------
-              print("[Code Builder] 5대 서비스 노드의 파이썬 API 소스코드를 생성합니다.")
+              print("[Code Builder] 6대 서비스 노드의 파이썬 API 소스코드를 생성합니다.")
+              
               gw_code = textwrap.dedent("""\
                   import uvicorn, re
                   from fastapi import FastAPI, HTTPException, Header
@@ -189,7 +190,7 @@ jobs:
                   if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8000)
               """)
               with open("generated/server/gateway/gateway_main.py", "w", encoding="utf-8") as f: f.write(gw_code)
-
+              
               sec_code = textwrap.dedent("""\
                   import uvicorn, re
                   from fastapi import FastAPI, HTTPException
@@ -212,7 +213,7 @@ jobs:
                   if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8080)
               """)
               with open("generated/server/security/security_main.py", "w", encoding="utf-8") as f: f.write(sec_code)
-
+              
               mig_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
@@ -228,7 +229,7 @@ jobs:
                   if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8090)
               """)
               with open("generated/server/migration/migration_main.py", "w", encoding="utf-8") as f: f.write(mig_code)
-
+              
               cfg_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
@@ -246,7 +247,7 @@ jobs:
                   if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8070)
               """)
               with open("generated/server/config/config_main.py", "w", encoding="utf-8") as f: f.write(cfg_code)
-
+              
               upg_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
@@ -264,6 +265,24 @@ jobs:
                   if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8060)
               """)
               with open("generated/server/upgrade/upgrade_main.py", "w", encoding="utf-8") as f: f.write(upg_code)
+              
+              fen_code = textwrap.dedent("""\
+                  import uvicorn
+                  from fastapi import FastAPI, HTTPException
+                  from pydantic import BaseModel, Field
+                  app = FastAPI(title='Enterprise Fencing Service', version='1.5.0')
+                  class FenceRule(BaseModel):
+                      target_ip: str = Field(..., pattern=r'^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+                      action: str = Field(..., pattern=r'^(ALLOW|DENY)$')
+                  @app.get('/health')
+                  def fencing_health(): return {'status': 'healthy'}
+                  @app.post('/api/v1/fencing/apply')
+                  def apply_fence(rule: FenceRule):
+                      if rule.target_ip == '127.0.0.1' and rule.action == 'DENY': raise HTTPException(403, detail='Cannot deny localhost')
+                      return {'status': 'fenced', 'ip': rule.target_ip, 'action': rule.action}
+                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8050)
+              """)
+              with open("generated/server/fencing/fencing_main.py", "w", encoding="utf-8") as f: f.write(fen_code)
 
               # -----------------------------------------------------------------
               # [Dependabot & Docker 매니페스트 대량 생성] 마이크로서비스 최적화
@@ -274,21 +293,21 @@ jobs:
                   ("security", 8080, "security_main.py"),
                   ("migration", 8090, "migration_main.py"),
                   ("config", 8070, "config_main.py"),
-                  ("upgrade", 8060, "upgrade_main.py")
+                  ("upgrade", 8060, "upgrade_main.py"),
+                  ("fencing", 8050, "fencing_main.py")
               ]
               
               docker_compose_services = []
-
               for svc_name, port, main_file in services_meta:
                   # Dependabot이 감지할 수 있도록 구버전 고의 핀(Pinning) -> 보안 PR 유도 목적
                   req_content = "fastapi==0.110.0\nuvicorn==0.27.1\npydantic==2.6.4\nhttpx==0.27.0\npython-multipart==0.0.9\n"
                   with open(f"generated/server/{svc_name}/requirements.txt", "w", encoding="utf-8") as f:
                       f.write(req_content)
-                      
+                  
                   # Docker 빌드 컨텍스트 청결 유지를 위한 .dockerignore
                   with open(f"generated/server/{svc_name}/.dockerignore", "w", encoding="utf-8") as f:
                       f.write("__pycache__/\n*.pyc\n.env\n")
-
+                  
                   # 정규 규격의 Dockerfile
                   dockerfile_content = textwrap.dedent(f"""\
                       FROM python:3.11-slim
@@ -312,11 +331,10 @@ jobs:
                           - "{port}:{port}"
                         restart: unless-stopped
                   """), "  "))
-
+              
               compose_content = "version: '3.8'\nservices:\n" + "".join(docker_compose_services)
               with open("generated/docker_cluster/docker-compose.yml", "w", encoding="utf-8") as f:
                   f.write(compose_content)
-
               with open("generated/.env.example", "w", encoding="utf-8") as f:
                   f.write("ENV=production\nTOKEN_LESS_MODE=TRUE\nAUTO_UPGRADE_ENABLED=TRUE\n")
 
@@ -333,12 +351,12 @@ jobs:
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
 
       # -----------------------------------------------------------------------
-      # 8. 5노드 클러스터 동시 배포 및 명세서(OpenAPI JSON/MD) 대량 덤프
+      # 8. 6노드 클러스터 동시 배포 및 명세서(OpenAPI JSON/MD) 대량 덤프
       # -----------------------------------------------------------------------
-      - name: Deploy 5-Node Cluster & Generate Mass Specifications
+      - name: Deploy 6-Node Cluster & Generate Mass Specifications
         shell: bash
         run: |
-          echo "[Deployment] 클러스터 노드 5대 로컬 런타임 백그라운드 구동 개시..."
+          echo "[Deployment] 클러스터 노드 6대 로컬 런타임 백그라운드 구동 개시..."
           .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py &
           GW_PID=$!
           .venv_ai_agent/bin/python generated/server/security/security_main.py &
@@ -349,10 +367,12 @@ jobs:
           CFG_PID=$!
           .venv_ai_agent/bin/python generated/server/upgrade/upgrade_main.py &
           UPG_PID=$!
+          .venv_ai_agent/bin/python generated/server/fencing/fencing_main.py &
+          FEN_PID=$!
 
           cat << 'PYEOF' > wait_for_ports.py
           import socket, time, sys
-          ports = [8000, 8060, 8070, 8080, 8090]
+          ports = [8000, 8050, 8060, 8070, 8080, 8090]
           for p in ports:
               ready = False
               for _ in range(30): 
@@ -365,27 +385,29 @@ jobs:
           PYEOF
           .venv_ai_agent/bin/python wait_for_ports.py
 
-          echo "[Validation] 5대 분산 서버 전체 보안 파라미터 교차 진단 개시..."
+          echo "[Validation] 6대 분산 서버 전체 보안 파라미터 교차 진단 개시..."
           gw_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; d=json.loads(urllib.request.urlopen('http://127.0.0.1:8000/health').read()); print(d.get('status',''))")
           sec_audit=$(.venv_ai_agent/bin/python -c "import urllib.request, json; req=urllib.request.Request('http://127.0.0.1:8080/api/v1/security/inspect',data=json.dumps({'rule_id':'SEC-101'}).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('audit_result',''))")
           mig_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; req=urllib.request.Request('http://127.0.0.1:8090/api/v1/migrate/transfer',data=json.dumps({'target_node':'security_node_cluster','resource_count':500}).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
           cfg_reg=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'repo_name':'grand-ops','commit_message':'Automated patch'}; req=urllib.request.Request('http://127.0.0.1:8070/api/v1/config/commit',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
           upg_reg=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'component':'security_engine','force_update':True}; req=urllib.request.Request('http://127.0.0.1:8060/api/v1/upgrade/apply',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
+          fen_status=$(.venv_ai_agent/bin/python -c "import urllib.request, json; payload={'target_ip':'192.168.1.100','action':'DENY'}; req=urllib.request.Request('http://127.0.0.1:8050/api/v1/fencing/apply',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST'); d=json.loads(urllib.request.urlopen(req).read()); print(d.get('status',''))")
 
           if [ "$gw_status" = "healthy" ] && [ "$sec_audit" = "Injection Defense Triggered" ] && \
-             [ "$mig_status" = "healthy" ] && [ "$cfg_reg" = "committed" ] && [ "$upg_reg" = "upgraded" ]; then
-            echo "[SUCCESS] 업그레이드 노드 포함 5대 서버 구동 검증 완료."
+             [ "$mig_status" = "healthy" ] && [ "$cfg_reg" = "committed" ] && [ "$upg_reg" = "upgraded" ] && \
+             [ "$fen_status" = "fenced" ]; then
+            echo "[SUCCESS] 펜싱(Fencing) 노드 포함 6대 서버 구동 검증 완료."
           else
-            kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" 2>/dev/null || true
+            kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" "$FEN_PID" 2>/dev/null || true
             exit 1
           fi
 
           echo "[Spec Generator] 라이브 서버 OpenAPI 명세서 대량 덤프 및 마스터 문서 생성..."
           cat << 'PYEOF' > generate_specs.py
           import urllib.request, json, os
-          ports = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070, 'upgrade': 8060}
+          ports = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070, 'upgrade': 8060, 'fencing': 8050}
           os.makedirs('generated/openapi/specs', exist_ok=True)
-          master_md = "# 📚 Enterprise 5-Node Cluster API Master Specification\n\n"
+          master_md = "# 📚 Enterprise 6-Node Cluster API Master Specification\n\n"
           for name, port in ports.items():
               try:
                   url = f"http://127.0.0.1:{port}/openapi.json"
@@ -402,8 +424,7 @@ jobs:
           PYEOF
           
           .venv_ai_agent/bin/python generate_specs.py
-
-          kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" 2>/dev/null || true
+          kill "$GW_PID" "$SEC_PID" "$MIG_PID" "$CFG_PID" "$UPG_PID" "$FEN_PID" 2>/dev/null || true
 
       # -----------------------------------------------------------------------
       # 9. OWASP 공급망 방어 1단계: CVE Lite CLI (Dependabot 인식용 package.json 덤프)
