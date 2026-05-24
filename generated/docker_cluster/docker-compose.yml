@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  gateway:
+    build: 
+      context: ../server/gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+  security:
+    build: 
+      context: ../server/security
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+  migration:
+    build: 
+      context: ../server/migration
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    restart: unless-stopped
+  config:
+    build: 
+      context: ../server/config
+      dockerfile: Dockerfile
+    ports:
+      - "8070:8070"
+    restart: unless-stopped
+  upgrade:
+    build: 
+      context: ../server/upgrade
+      dockerfile: Dockerfile
+    ports:
+      - "8060:8060"
+    restart: unless-stopped
