@@ -51,7 +51,7 @@ jobs:
           persist-credentials: true
 
       # -----------------------------------------------------------------------
-      # 2. 런타임 환경 구축 (Python 3.11 및 Java 17 표준 구성)
+      # 2. 런타임 환경 구축
       # -----------------------------------------------------------------------
       - name: Setup Python Runtime
         uses: actions/setup-python@v6
@@ -64,17 +64,24 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # -----------------------------------------------------------------------
-      # 3. [체계적 스캔 핵심 1] 소스 코드 선행 생성 (CodeQL 인덱싱 가시성 확보)
+      # 3. 소스 코드 선행 생성 (포트 충돌 해결 및 기능 강화 반영)
       # -----------------------------------------------------------------------
       - name: Pre-Deploy Source Code Files for Scanning
         shell: bash
         run: |
-          echo "[Pipeline] CodeQL 인덱싱 전 소스 코드 물리적 선행 배치 시작..."
+          echo "[Pipeline] CodeQL 인덱싱 전 소스 코드 및 의존성 매니페스트 물리적 배치..."
           mkdir -p .venv_ai_agent/agent_core
           mkdir -p src/main/java
+          mkdir -p generated/security_reports
+          mkdir -p generated/frontend
           
-          # [Java Agent 소스 생성 - 정식 소스 경로 구성]
+          # [Java Agent 소스 생성 (유지)]
           cat << 'JAVAEOF' > src/main/java/MassiveClaudeAgent.java
           import java.io.IOException;
           import java.net.URI;
@@ -161,7 +168,7 @@ jobs:
           }
           JAVAEOF
 
-          # [Python Agent 및 6노드 인프라 아키텍처 스크립트 선행 생성]
+          # [Python Agent - 포트 충돌(Errno 98) 해결 및 CORS 미들웨어 기능 추가]
           cat > .venv_ai_agent/agent_core/ai_agent.py << 'PYEOF'
           import os, json, textwrap
           def run_agent():
@@ -175,17 +182,19 @@ jobs:
               nodes = [{"node_id": f"NODE-{i:05d}", "status": "provisioned", "zone": "ap-northeast-2"} for i in range(1, 10001)]
               with open("generated/data/seed/mass_node_registry.json", "w", encoding="utf-8") as f: json.dump(nodes, f, indent=2)
               
-              # Fencing 서비스 엔진 소스 자동 코드 생성 구조 확립
+              # Fencing 서비스 (포트 8050) + CORS 미들웨어 적용
               fen_code = textwrap.dedent("""\
                   import uvicorn
                   from fastapi import FastAPI, HTTPException
+                  from fastapi.middleware.cors import CORSMiddleware
                   from pydantic import BaseModel, Field
-                  app = FastAPI(title='Enterprise Fencing Service', version='1.5.0')
+                  app = FastAPI(title='Enterprise Fencing Service', version='2.0.0')
+                  app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
                   class FenceRule(BaseModel):
                       target_ip: str = Field(..., pattern=r'^([0-9]{1,3}\.){3}[0-9]{1,3}$')
                       action: str = Field(..., pattern=r'^(ALLOW|DENY)$')
                   @app.get('/health')
-                  def fencing_health(): return {'status': 'healthy'}
+                  def fencing_health(): return {'status': 'healthy', 'node': 'fencing', 'port': 8050}
                   @app.post('/api/v1/fencing/apply')
                   def apply_fence(rule: FenceRule):
                       if rule.target_ip == '127.0.0.1' and rule.action == 'DENY': raise HTTPException(403)
@@ -194,19 +203,62 @@ jobs:
               """)
               with open("generated/server/fencing/fencing_main.py", "w", encoding="utf-8") as f: f.write(fen_code)
               
-              # Gateway, Security 등 나머지 5개 서비스 메인 코드 기본 생성
-              services = ['gateway', 'security', 'migration', 'config', 'upgrade']
-              for svc in services:
-                  code = f"import uvicorn\nfrom fastapi import FastAPI\napp = FastAPI(title='{svc.upper()} Node')\n" \
-                         f"@app.get('/health')\ndef h(): return {{'status':'healthy'}}\n" \
-                         f"if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8000)\n"
-                  with open(f"generated/server/{svc}/{svc}_main.py", "w") as f: f.write(code)
-              print("[Python Agent] 모든 마이크로서비스 물리 소스 배치 완료.")
+              # 나머지 5개 서비스: 고유 포트 맵핑 적용 (Errno 98 해결의 핵심)
+              port_mapping = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070, 'upgrade': 8060}
+              
+              for svc, port in port_mapping.items():
+                  os.makedirs(f"generated/server/{svc}", exist_ok=True)
+                  # CORS 미들웨어 및 상세 Health Status 반영
+                  code = textwrap.dedent(f"""\
+                      import uvicorn
+                      from fastapi import FastAPI
+                      from fastapi.middleware.cors import CORSMiddleware
+                      app = FastAPI(title='{svc.upper()} Node', version='2.0.0')
+                      app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+                      @app.get('/health')
+                      def h(): return {{'status':'healthy', 'service': '{svc}', 'port': {port}}}
+                      if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port={port})
+                  """)
+                  with open(f"generated/server/{svc}/{svc}_main.py", "w", encoding="utf-8") as f: f.write(code)
+                  
+                  # [신규 기능] Dockerfile 자동 생성 (인프라 설치 강화)
+                  dockerfile = f"FROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY {svc}_main.py main.py\nEXPOSE {port}\nCMD [\"python\", \"main.py\"]\n"
+                  with open(f"generated/server/{svc}/Dockerfile", "w") as df: df.write(dockerfile)
+
+              # Fencing 용 Dockerfile도 추가
+              with open("generated/server/fencing/Dockerfile", "w") as df:
+                  df.write("FROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY fencing_main.py main.py\nEXPOSE 8050\nCMD [\"python\", \"main.py\"]\n")
+
+              # [신규 기능] 전체 클러스터 통합 docker-compose.yml 생성
+              compose_yaml = "version: '3.8'\nservices:\n"
+              all_ports = {**port_mapping, 'fencing': 8050}
+              for svc, p in all_ports.items():
+                  compose_yaml += f"  {svc}:\n    build: ../server/{svc}\n    ports:\n      - \"{p}:{p}\"\n    restart: unless-stopped\n"
+              with open("generated/docker_cluster/docker-compose.yml", "w") as dc: dc.write(compose_yaml)
+
+              # 전체 의존성 파일 일괄 생성
+              for svc in all_ports.keys():
+                  with open(f"generated/server/{svc}/requirements.txt", "w") as req:
+                      req.write("fastapi==0.110.0\nuvicorn==0.27.1\npydantic==2.6.4\n")
+                      
+              print("[Python Agent] 포트 충돌 완벽 방어 및 Docker Compose 인프라 생성 완료.")
           if __name__ == "__main__": run_agent()
           PYEOF
 
+          # [OWASP 점검 대상 공급망 취약 패키지 고의 배치]
+          cat << 'EOF' > generated/frontend/package.json
+          {
+            "name": "enterprise-frontend-bff",
+            "version": "1.0.0",
+            "dependencies": {
+              "cross-spawn": "5.1.0",
+              "minimatch": "3.0.4"
+            }
+          }
+          EOF
+
       # -----------------------------------------------------------------------
-      # 4. Initialize CodeQL (Java 및 Python 다중 언어 체계적 인덱싱 시작)
+      # 4. Initialize CodeQL (Java 및 Python 다중 언어 스캔 시작)
       # -----------------------------------------------------------------------
       - name: Initialize CodeQL Engine
         uses: github/codeql-action/init@v4
@@ -215,16 +267,15 @@ jobs:
           queries: +security-extended,security-and-quality
 
       # -----------------------------------------------------------------------
-      # 5. [체계적 스캔 핵심 2] CodeQL 추적 하에 정식 컴파일 프로세스 수행
+      # 5. Execute Traceable Java Compilation (CodeQL Tracer 빌드 수집)
       # -----------------------------------------------------------------------
       - name: Execute Traceable Java Compilation
         run: |
-          echo "[Pipeline] CodeQL Build Tracer가 컴파일 공정을 추적합니다."
-          # 소스 폴더 구조 내에서 정식 컴파일러(javac)를 기동하여 데이터베이스에 바인딩시킵니다.
+          echo "[Pipeline] CodeQL Build Tracer 빌드 모니터링 컴파일 개시..."
           javac -d bin src/main/java/MassiveClaudeAgent.java
 
       # -----------------------------------------------------------------------
-      # 6. Perform CodeQL Analysis (Java 빌드 이력과 Python 소스 동시 완전 분석)
+      # 6. Perform CodeQL Analysis (정적 코드 분석 실행)
       # -----------------------------------------------------------------------
       - name: Perform CodeQL Deep Analysis
         uses: github/codeql-action/analyze@v4
@@ -233,71 +284,111 @@ jobs:
           upload: true
 
       # -----------------------------------------------------------------------
-      # 7. 마이크로서비스 인프라 인젝션 및 오프라인 Python 에이전트 구동
+      # 7. 오프라인 Python 및 온/오프라인 Java 에이전트 구동 (대량 리소스 생성)
       # -----------------------------------------------------------------------
-      - name: Run Offline Python Data Agent
+      - name: Run Mass Resource Generation AI Agents
         run: |
           python -m venv .venv_ai_agent
           .venv_ai_agent/bin/pip install --upgrade pip urllib3 fastapi uvicorn httpx python-multipart pydantic
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
-
-      # -----------------------------------------------------------------------
-      # 8. 검증 완료된 자바 대량 데이터 동시성 에이전트 가동
-      # -----------------------------------------------------------------------
-      - name: Run Java Massive Data Concurrency Agent
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
           java -cp bin MassiveClaudeAgent
 
       # -----------------------------------------------------------------------
-      # 9. 6개 분산 노드 실시간 기동 및 라이브 OpenAPI 명세서 통합 추출 공정
+      # 8. 분산 노드 실시간 기동 및 라이브 OpenAPI 명세서 통합 추출 (포트 에러 해결 적용)
       # -----------------------------------------------------------------------
       - name: Live Cluster Deployment & Spec Extraction
         shell: bash
         run: |
-          echo "[Deployment] 6대 분산 인프라 백그라운드 런타임 구동..."
+          echo "[Deployment] 6대 분산 인프라 백그라운드 런타임 구동 (충돌 없이 각 포트로 바인딩)..."
           .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py &
           .venv_ai_agent/bin/python generated/server/security/security_main.py &
           .venv_ai_agent/bin/python generated/server/migration/migration_main.py &
           .venv_ai_agent/bin/python generated/server/config/config_main.py &
           .venv_ai_agent/bin/python generated/server/upgrade/upgrade_main.py &
           .venv_ai_agent/bin/python generated/server/fencing/fencing_main.py &
-          sleep 5
+          
+          echo "서버들이 포트를 바인딩할 때까지 10초 대기합니다..."
+          sleep 10
           
           cat << 'PYEOF' > generate_specs.py
           import urllib.request, json, os
-          ports = {'gateway': 8000, 'security': 8000, 'migration': 8000, 'config': 8000, 'upgrade': 8000, 'fencing': 8050}
+          # 포트 충돌이 해결된 올바른 포트 배열 참조
+          ports = {'gateway': 8000, 'security': 8080, 'migration': 8090, 'config': 8070, 'upgrade': 8060, 'fencing': 8050}
           os.makedirs('generated/openapi/specs', exist_ok=True)
           for name, port in ports.items():
               try:
                   url = f"http://127.0.0.1:{port}/openapi.json"
-                  data = json.loads(urllib.request.urlopen(url).read())
+                  req = urllib.request.urlopen(url, timeout=5)
+                  data = json.loads(req.read())
                   with open(f"generated/openapi/specs/{name}_openapi.json", "w", encoding="utf-8") as f:
                       json.dump(data, f, indent=2, ensure_ascii=False)
-              except Exception as e: print(f"Failed to fetch {name}: {e}")
+                  print(f"[{name}] OpenAPI 명세서 추출 성공 (포트 {port})")
+              except Exception as e: print(f"[{name}] API 명세 호출 실패 (포트 {port}): {e}")
           PYEOF
+          
           .venv_ai_agent/bin/python generate_specs.py
           pkill -f uvicorn || true
 
       # -----------------------------------------------------------------------
-      # 10. OWASP 공급망 방어 융합 (의존성 및 소스 자산 다각도 스캔)
+      # 9. [OWASP 1단계] OWASP cve-lite-cli 고속 검증
       # -----------------------------------------------------------------------
-      - name: OWASP Supply Chain Comprehensive Scan
+      - name: OWASP cve-lite-cli - Extreme Shift Left Local Scan
         shell: bash
         run: |
-          echo "[Security Scan] OWASP 규격 공급망 취약점 추적 개시..."
-          mkdir -p generated/frontend
-          cat << 'EOF' > generated/frontend/package.json
-          { "name": "enterprise-frontend-bff", "version": "1.0.0", "dependencies": { "cross-spawn": "5.1.0" } }
-          EOF
+          echo "[OWASP 공급망 방어] cve-lite-cli를 통한 초고속 로컬 취약점 점검..."
           cd generated/frontend
           npm install --package-lock-only --ignore-scripts > /dev/null 2>&1 || true
           npx -y cve-lite-cli advisories sync
+          npx -y cve-lite-cli . --offline --verbose > ../security_reports/CVE_LITE_FIX_PLAN.txt || true
           npx -y cve-lite-cli . --offline --json > ../security_reports/cve_lite_raw.json || true
+          cd ../..
 
       # -----------------------------------------------------------------------
-      # 11. 최종 산출 자산 동기화 및 커밋/푸시 (동시성 충돌 방어)
+      # 10. [OWASP 2단계] OWASP Dependency-Check Scan
+      # -----------------------------------------------------------------------
+      - name: OWASP Dependency-Check Scan
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'Enterprise-Multi-Node-Infrastructure'
+          path: '.'
+          format: 'HTML'
+          out: 'generated/security_reports'
+        continue-on-error: true
+
+      # -----------------------------------------------------------------------
+      # 11. [OWASP 3단계] CycloneDX 기반 SBOM 명세 생성
+      # -----------------------------------------------------------------------
+      - name: OWASP SBOM Generation for Dependency-Track
+        shell: bash
+        run: |
+          echo "[OWASP 공급망 방어] CycloneDX 표준 규격의 SBOM JSON 마스터 생성..."
+          .venv_ai_agent/bin/pip install cyclonedx-bom
+          .venv_ai_agent/bin/cyclonedx-py environment --outfile generated/security_reports/sbom.json || true
+
+      # -----------------------------------------------------------------------
+      # 12. [OWASP 4단계] OWASP dep-scan 컨테이너/의존성 다각도 스캔
+      # -----------------------------------------------------------------------
+      - name: OWASP dep-scan Cross Verification
+        shell: bash
+        run: |
+          echo "[OWASP 공급망 방어] dep-scan 엔진 통합 구동..."
+          .venv_ai_agent/bin/pip install appthreat-depscan
+          .venv_ai_agent/bin/depscan --src . --reports-dir generated/security_reports/depscan || true
+
+      # -----------------------------------------------------------------------
+      # 13. 탐지된 취약점 자가 치유 (Remediation)
+      # -----------------------------------------------------------------------
+      - name: Automated Vulnerability Auto-Remediation
+        shell: bash
+        run: |
+          echo "[Remediation] 탐지된 취약점에 대해 조치 자동화 스크립트 구동..."
+          cd generated/frontend
+          npm audit fix --force > /dev/null 2>&1 || true
+          cd ../..
+          .venv_ai_agent/bin/pip install --upgrade --upgrade-strategy eager pip setuptools wheel fastapi uvicorn || true
+
+      # -----------------------------------------------------------------------
+      # 14. 최종 산출 자산 동기화 및 커밋/푸시
       # -----------------------------------------------------------------------
       - name: Secure Git Concurrency Sync & Push
         if: github.event_name != 'pull_request'
@@ -307,9 +398,9 @@ jobs:
           if [ -d "generated" ]; then
             git add generated/
             if git diff-index --quiet HEAD; then
-              echo "[INFO] 인프라 자산 변경사항 없음. 파이프라인 정상 종료."
+              echo "[INFO] 인프라 자산 변경사항 없음."
             else
-              git commit -m "chore: CodeQL 정식 컴파일 추적 분석 통과 및 AI 에이전트 다각도 보안 시드 데이터 적재 [skip ci]"
+              git commit -m "chore: 마이크로서비스 포트 충돌 수정 및 CORS/Docker 인프라 기능 대규모 확장 [skip ci]"
               CURRENT_BRANCH=${GITHUB_REF#refs/heads/}
               git pull --rebase --autostash origin $CURRENT_BRANCH
               git push origin HEAD
