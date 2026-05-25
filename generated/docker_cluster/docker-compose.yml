@@ -1,44 +1,32 @@
 version: '3.8'
 services:
   gateway:
-    build: 
-      context: ../server/gateway
-      dockerfile: Dockerfile
+    build: ../server/gateway
     ports:
       - "8000:8000"
     restart: unless-stopped
   security:
-    build: 
-      context: ../server/security
-      dockerfile: Dockerfile
+    build: ../server/security
     ports:
       - "8080:8080"
     restart: unless-stopped
   migration:
-    build: 
-      context: ../server/migration
-      dockerfile: Dockerfile
+    build: ../server/migration
     ports:
       - "8090:8090"
     restart: unless-stopped
   config:
-    build: 
-      context: ../server/config
-      dockerfile: Dockerfile
+    build: ../server/config
     ports:
       - "8070:8070"
     restart: unless-stopped
   upgrade:
-    build: 
-      context: ../server/upgrade
-      dockerfile: Dockerfile
+    build: ../server/upgrade
     ports:
       - "8060:8060"
     restart: unless-stopped
   fencing:
-    build: 
-      context: ../server/fencing
-      dockerfile: Dockerfile
+    build: ../server/fencing
     ports:
       - "8050:8050"
     restart: unless-stopped

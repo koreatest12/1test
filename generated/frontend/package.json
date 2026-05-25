@@ -1,1 +1,8 @@
-{ "name": "enterprise-frontend-bff", "version": "1.0.0", "dependencies": { "cross-spawn": "5.1.0" } }
+{
+  "name": "enterprise-frontend-bff",
+  "version": "1.0.0",
+  "dependencies": {
+    "cross-spawn": "^7.0.6",
+    "minimatch": "^3.1.5"
+  }
+}
