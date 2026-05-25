@@ -1,32 +1,61 @@
 version: '3.8'
 services:
+  postgres_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: enterprise_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../data/postgres_seed:/docker-entrypoint-initdb.d
   gateway:
     build: ../server/gateway
     ports:
       - "8000:8000"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
   security:
     build: ../server/security
     ports:
       - "8080:8080"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
   migration:
     build: ../server/migration
     ports:
       - "8090:8090"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
   config:
     build: ../server/config
     ports:
       - "8070:8070"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
   upgrade:
     build: ../server/upgrade
     ports:
       - "8060:8060"
+    depends_on:
+      - postgres_db
+    restart: unless-stopped
+  analytics:
+    build: ../server/analytics
+    ports:
+      - "8040:8040"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
   fencing:
     build: ../server/fencing
     ports:
       - "8050:8050"
+    depends_on:
+      - postgres_db
     restart: unless-stopped
