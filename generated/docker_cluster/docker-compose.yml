@@ -17,6 +17,20 @@ services:
     depends_on:
       - postgres_db
     restart: unless-stopped
+  analytics:
+    build: ../server/analytics
+    ports:
+      - "8040:8040"
+    depends_on:
+      - postgres_db
+    restart: unless-stopped
+  config:
+    build: ../server/config
+    ports:
+      - "8070:8070"
+    depends_on:
+      - postgres_db
+    restart: unless-stopped
   security:
     build: ../server/security
     ports:
@@ -31,24 +45,10 @@ services:
     depends_on:
       - postgres_db
     restart: unless-stopped
-  config:
-    build: ../server/config
-    ports:
-      - "8070:8070"
-    depends_on:
-      - postgres_db
-    restart: unless-stopped
   upgrade:
     build: ../server/upgrade
     ports:
       - "8060:8060"
-    depends_on:
-      - postgres_db
-    restart: unless-stopped
-  analytics:
-    build: ../server/analytics
-    ports:
-      - "8040:8040"
     depends_on:
       - postgres_db
     restart: unless-stopped
