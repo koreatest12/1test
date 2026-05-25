@@ -1,6 +1,6 @@
 {
   "rule_id": "RULE-435",
-  "target_ip": "192.168.17.195",
-  "action": "ALLOW",
+  "target_ip": "192.168.220.197",
+  "action": "DENY",
   "generated_by": "offline_mock_agent"
 }

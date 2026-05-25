@@ -1,14 +1,14 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Isolated Enterprise Security Node",
-    "version": "1.5.0"
+    "title": "SECURITY Node",
+    "version": "0.1.0"
   },
   "paths": {
-    "/api/v1/security/status": {
+    "/health": {
       "get": {
-        "summary": "Security Node Status",
-        "operationId": "security_node_status_api_v1_security_status_get",
+        "summary": "H",
+        "operationId": "h_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -19,112 +19,6 @@
             }
           }
         }
-      }
-    },
-    "/api/v1/security/inspect": {
-      "post": {
-        "summary": "Inspect Rule",
-        "operationId": "inspect_rule_api_v1_security_inspect_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/QueryModel"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "QueryModel": {
-        "properties": {
-          "rule_id": {
-            "type": "string",
-            "title": "Rule Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "rule_id"
-        ],
-        "title": "QueryModel"
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
       }
     }
   }
