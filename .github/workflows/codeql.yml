@@ -1,4 +1,4 @@
-name: "Enterprise Django CI & Advanced Security Pipeline"
+name: "Enterprise Django CI & Advanced Security EAI Pipeline"
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  # GitHub Actions 내부 러너의 Node 런타임 강제 동기화 지시문
+  # [Node 호환성 제어] GitHub Actions 내부 러너 정책에 맞춤화하여 Node 24 환경으로 전역 강제 지정합니다.
   ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: "node24"
   NODE_OPTIONS: "--no-deprecation"
   PYTHONUTF8: "1"
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   # =======================================================================
-  # [Job 1] Django Advanced CI (PostgreSQL DB 통합 무결성 검증)
+  # [Job 1] Django Advanced CI (PostgreSQL DB 통합 무결성 및 마이그레이션 검증)
   # =======================================================================
   django-advanced-ci:
     name: "Django CI (Python ${{ matrix.python-version }})"
@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -109,20 +109,20 @@ jobs:
           coverage report -m || true
 
   # =======================================================================
-  # [Job 2] Enterprise AI Pipeline (7-Node 인프라 및 결정론적 자산 제어)
+  # [Job 2] Enterprise AI & EAI Security Pipeline (인프라 자동 프로비저닝 및 다각도 방어)
   # =======================================================================
-  enterprise-ai-security:
-    name: "AI Agents & OWASP PostgreSQL Supply Chain Security"
+  enterprise-ai-eai-security:
+    name: "AI Agents, EAI Engine & OWASP Comprehensive Supply Chain Scan"
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Setup Python, Java & Node.js Runtimes
+      - name: Setup Multi-Runtime Environments
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -135,14 +135,14 @@ jobs:
           node-version: '24'
 
       # -----------------------------------------------------------------------
-      # [CodeQL 선행 단계] 컴파일러 분석 전 소스 아키텍처 파일 물리 배치 완료
+      # [CodeQL 선행 요건] 정적 코드 분석 엔진 작동 전, 소스 트리 구조 정밀 선행 전개
       # -----------------------------------------------------------------------
-      - name: Pre-Deploy Source Code Files for CodeQL Visibility
+      - name: Pre-Deploy Source Code Files for CodeQL Full Visibility
         shell: bash
         run: |
           mkdir -p .venv_ai_agent/agent_core src/main/java generated/security_reports generated/frontend
           
-          # [Java AI Agent] 인덱스 기반 결정론적 오프라인 Mock 생성 알고리즘 내장
+          # [Java AI Agent 소스 배포] 결정론적 해시 기반 고성능 오프라인 뱃치 생성 알고리즘 탑재
           cat << 'JAVAEOF' > src/main/java/MassiveClaudeAgent.java
           import java.io.IOException;
           import java.net.URI;
@@ -169,7 +169,7 @@ jobs:
               public MassiveClaudeAgent() {
                   String envKey = System.getenv("ANTHROPIC_API_KEY");
                   if (envKey == null || envKey.isBlank() || "null".equalsIgnoreCase(envKey.trim())) {
-                      System.err.println("[WARN] API KEY 누락. 결정론적 오프라인 Mock 제너레이터로 전환합니다.");
+                      System.err.println("[WARN] API KEY 누락. 인덱스 기반 결정론적 오프라인 Mock 제너레이터로 안전 모드 기동합니다.");
                       this.apiKey = null;
                       this.isMockMode = true;
                   } else {
@@ -184,7 +184,7 @@ jobs:
                       return CompletableFuture.supplyAsync(() -> {
                           try {
                               rateLimiter.acquire();
-                              // 중복 실행 시 파일 변동 격차를 최소화하는 인덱스 기반 결정론적 데이터 설계
+                              // [결정론적 고강도 설계] 파일 재생성 시 Rebase 충돌을 방지하기 위한 유일값 매핑 구조
                               int segmentA = (ruleIndex * 17) % 255;
                               int segmentB = (ruleIndex * 31) % 255;
                               String mockIp = "192.168." + segmentA + "." + segmentB;
@@ -213,7 +213,7 @@ jobs:
               }
 
               public void generateMassResources(int totalCount, int batchSize) {
-                  // Rebase 충돌 억제를 위해 격리 공간(runtime 디렉토리)에 파일 적재
+                  // 휘발성 대량 데이터 폴더를 runtime 공간으로 완전히 격리 전향하여 충돌을 영구 차단
                   Path outputDir = Paths.get("generated/runtime/ai_seed");
                   try { Files.createDirectories(outputDir); } catch (IOException e) { throw new RuntimeException(e); }
                   
@@ -233,7 +233,7 @@ jobs:
           }
           JAVAEOF
 
-          # [Python Agent - 7 Node 고유 포트 바인딩 및 프로그레시브 롤링 업그레이드 스키마 구축]
+          # [Python Agent - 7대 마이크로서비스 노드 인프라 아키텍처 자동 프로비저닝]
           cat > .venv_ai_agent/agent_core/ai_agent.py << 'PYEOF'
           import os, json, textwrap
           def run_agent():
@@ -249,6 +249,7 @@ jobs:
                   for i in range(1, 101):
                       sql_file.write(f"INSERT INTO node_registry (node_id, status, zone) VALUES ('NODE-{i:04d}', 'provisioned', 'ap-northeast-2') ON CONFLICT DO NOTHING;\n")
 
+              # Core Upgrade 서비스 노드 작성 (포트 8060)
               upg_code = textwrap.dedent("""\
                   import uvicorn; from fastapi import FastAPI, HTTPException; from fastapi.middleware.cors import CORSMiddleware; from pydantic import BaseModel
                   app = FastAPI(title='Enterprise Core Upgrade Engine', version='2.0.0')
@@ -270,6 +271,7 @@ jobs:
               """)
               with open("generated/server/upgrade/upgrade_main.py", "w", encoding="utf-8") as f: f.write(upg_code)
 
+              # Fencing 서비스 노드 작성 (포트 8050)
               fen_code = textwrap.dedent("""\
                   import uvicorn; from fastapi import FastAPI; from fastapi.middleware.cors import CORSMiddleware; from pydantic import BaseModel, Field
                   app = FastAPI(title='Enterprise Fencing Service', version='2.0.0'); app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -279,28 +281,66 @@ jobs:
               """)
               with open("generated/server/fencing/fencing_main.py", "w", encoding="utf-8") as f: f.write(fen_code)
               
-              # 고유 포트 정렬 스펙 할당 (Errno 98 원천 해결 보장)
+              # 나머지 5개 마이크로서비스 엔진 고유 바인딩 포트 맵핑 처리
               port_mapping = {'gateway': 8000, 'analytics': 8040, 'config': 8070, 'security': 8080, 'migration': 8090}
               for svc, port in port_mapping.items():
                   code = f"import uvicorn; from fastapi import FastAPI; from fastapi.middleware.cors import CORSMiddleware\napp = FastAPI(title='{svc.upper()} Node', version='2.0.0')\napp.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])\n@app.get('/health')\ndef h(): return {{'status':'healthy', 'service': '{svc}', 'port': {port}, 'version': '2.0.0'}}\nif __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port={port})\n"
                   with open(f"generated/server/{svc}/{svc}_main.py", "w", encoding="utf-8") as f: f.write(code)
 
+              # 클러스터 오케스트레이션 배포용 Docker Compose 구성
               all_ports = {**port_mapping, 'upgrade': 8060, 'fencing': 8050}
               compose_yaml = "version: '3.8'\nservices:\n  postgres_db:\n    image: postgres:15\n    environment:\n      POSTGRES_USER: admin\n      POSTGRES_PASSWORD: secure_password\n      POSTGRES_DB: enterprise_db\n    ports:\n      - \"5432:5432\"\n    volumes:\n      - ../data/postgres_seed:/docker-entrypoint-initdb.d\n"
               for svc, p in all_ports.items():
                   compose_yaml += f"  {svc}:\n    build: ../server/{svc}\n    ports:\n      - \"{p}:{p}\"\n    depends_on:\n      - postgres_db\n    restart: unless-stopped\n"
-                  with open(f"generated/server/{svc}/requirements.txt", "w") as req: req.write("fastapi==0.110.0\nuvicorn==0.27.1\npydantic==2.6.4\n")
+                  with open(f"generated/server/{svc}/requirements.txt", "w") as req: req.write("fastapi==0.110.0\nuvicorn==0.27.1\npydantic==2.6.4\naiofiles==23.2.1\n")
               with open("generated/docker_cluster/docker-compose.yml", "w") as dc: dc.write(compose_yaml)
           if __name__ == "__main__": run_agent()
           PYEOF
 
-          # [Frontend Package.json]
+          # [Python Component - EAI 대용량 스트리밍 파일 수신 및 체크섬 검증 서버 구성 (포트 8030)]
+          cat << 'EAIOEF' > eai_receiver.py
+          import os, hashlib, aiofiles
+          from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+          from fastapi.middleware.cors import CORSMiddleware
+          app = FastAPI(title="Enterprise EAI Inbound File Receiver", version="2.0.0")
+          app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+          EAI_RECEIVE_DIR = "generated/runtime/eai_inbound"
+          os.makedirs(EAI_RECEIVE_DIR, exist_ok=True)
+
+          @app.get('/health')
+          def eai_health(): return {'status': 'healthy', 'node': 'eai_receiver', 'port': 8030}
+
+          @app.post("/api/v1/eai/receive")
+          async def receive_eai_file(file: UploadFile = File(...), x_eai_transaction_id: str = Header(...), x_expected_checksum: str = Header(None)):
+              target_path = os.path.join(EAI_RECEIVE_DIR, file.filename)
+              sha256 = hashlib.sha256()
+              received_bytes = 0
+              try:
+                  async with aiofiles.open(target_path, "wb") as out_file:
+                      while chunk := await file.read(1024 * 1024):
+                          received_bytes += len(chunk)
+                          sha256.update(chunk)
+                          await out_file.write(chunk)
+                  calculated_hash = sha256.hexdigest()
+                  if x_expected_checksum and calculated_hash != x_expected_checksum.lower():
+                      if os.path.exists(target_path): os.remove(target_path)
+                      raise HTTPException(status_code=400, detail="Data Integrity Verification Failed")
+                  return {"status": "SUCCESS", "file_name": file.filename, "received_bytes": received_bytes, "checksum": calculated_hash, "transaction_id": x_eai_transaction_id}
+              except Exception as e:
+                  if os.path.exists(target_path): os.remove(target_path)
+                  raise HTTPException(status_code=500, detail=str(e))
+          if __name__ == "__main__":
+              import uvicorn
+              uvicorn.run(app, host="0.0.0.0", port=8030)
+          EAIOEF
+
+          # [OWASP 스캔 전용 가상 프론트엔드 BFF 명세 설정]
           cat << 'EOF' > generated/frontend/package.json
-          { "name": "enterprise-frontend", "version": "1.0.0", "dependencies": { "cross-spawn": "5.1.0" } }
+          { "name": "enterprise-frontend-bff", "version": "1.0.0", "dependencies": { "cross-spawn": "5.1.0", "minimatch": "3.0.4" } }
           EOF
 
       # -----------------------------------------------------------------------
-      # 4. Initialize CodeQL (Java 및 Python 다중 자산 완벽 추적)
+      # 4. Initialize CodeQL (Java 및 Python 멀티랭귀지 정적 정밀 추적)
       # -----------------------------------------------------------------------
       - name: Initialize CodeQL Engine
         uses: github/codeql-action/init@v3
@@ -309,7 +349,7 @@ jobs:
           queries: +security-extended,security-and-quality
 
       # -----------------------------------------------------------------------
-      # 5. Execute Traceable Java Compilation (CodeQL Tracer 빌드 컴파일 로깅)
+      # 5. Execute Traceable Java Compilation (CodeQL Tracer 모니터링 수집 인터셉트)
       # -----------------------------------------------------------------------
       - name: Execute Traceable Java Compilation
         run: javac -d bin src/main/java/MassiveClaudeAgent.java
@@ -324,22 +364,22 @@ jobs:
           upload: true
 
       # -----------------------------------------------------------------------
-      # 7. 대량 시드 데이터 생성 공정 기동
+      # 7. 결정론적 AI 에이전트 가동 및 인프라 대량 자산 물리적 생성
       # -----------------------------------------------------------------------
       - name: Run Mass Resource Generation AI Agents
         run: |
           python -m venv .venv_ai_agent
-          .venv_ai_agent/bin/pip install --upgrade pip urllib3 fastapi uvicorn httpx python-multipart pydantic
+          .venv_ai_agent/bin/pip install --upgrade pip urllib3 fastapi uvicorn httpx python-multipart pydantic aiofiles
           .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
           java -cp bin MassiveClaudeAgent
 
       # -----------------------------------------------------------------------
-      # 8. 라이브 7-Cluster 배포 및 정밀 PID 타겟 종료 제어 (Polling)
+      # 8. 7개 노드 클러스터 + EAI 파일 수신 엔진 기동 및 롤링 패치 / 파일 전송 시뮬레이터 검증
       # -----------------------------------------------------------------------
-      - name: Live 7-Cluster Deployment & Version Upgrade Simulation
+      - name: Live Cluster & EAI Run & Integration Testing (PID-Targeted Control)
         shell: bash
         run: |
-          echo "[Pipeline] 7대 독립 분산 노드를 기동하고 백그라운드 PID를 획득합니다."
+          echo "[Deployment] 7대 분산 노드 및 EAI 수신 서버 실시간 백그라운드 구동 개시..."
           .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py & GW_PID=$!
           .venv_ai_agent/bin/python generated/server/analytics/analytics_main.py & ANA_PID=$!
           .venv_ai_agent/bin/python generated/server/fencing/fencing_main.py & FEN_PID=$!
@@ -347,12 +387,15 @@ jobs:
           .venv_ai_agent/bin/python generated/server/config/config_main.py & CFG_PID=$!
           .venv_ai_agent/bin/python generated/server/security/security_main.py & SEC_PID=$!
           .venv_ai_agent/bin/python generated/server/migration/migration_main.py & MIG_PID=$!
+          .venv_ai_agent/bin/python eai_receiver.py & EAI_PID=$!
           
+          # [안정화 모듈] 전체 고유 바인딩 포트의 활성화 상태 파악 및 데이터 파싱 시뮬레이션
           cat << 'PYEOF' > generate_specs.py
-          import urllib.request, json, os, time
-          ports = {'gateway': 8000, 'analytics': 8040, 'fencing': 8050, 'upgrade': 8060, 'config': 8070, 'security': 8080, 'migration': 8090}
+          import urllib.request, json, os, time, hashlib
+          ports = {'gateway': 8000, 'analytics': 8040, 'fencing': 8050, 'upgrade': 8060, 'config': 8070, 'security': 8080, 'migration': 8090, 'eai_receiver': 8030}
           os.makedirs('generated/openapi/specs', exist_ok=True)
           
+          # Health Status Polling Check
           for name, port in ports.items():
               for _ in range(15):
                   try:
@@ -362,36 +405,59 @@ jobs:
                       break
                   except Exception: time.sleep(1)
                   
+          # 기능 테스트 1: 세맨틱 버전 무중단 롤링 패치 전송 검증
           try:
-              upgrade_url = "http://127.0.0.1:8060/api/v1/upgrade/apply"
               payload = json.dumps({"service_name": "gateway", "target_version": "2.1.5", "force_update": True}).encode('utf-8')
-              req = urllib.request.Request(upgrade_url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
-              response = urllib.request.urlopen(req, timeout=5)
-              print(f"[SUCCESS] Version Upgrade Function Handled: {response.status}")
-          except Exception as e:
-              print(f"[WARN] Upgrade Engine Verification: {e}")
+              req = urllib.request.Request("http://127.0.0.1:8060/api/v1/upgrade/apply", data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+              print(f"[Engine Check] Rolling Upgrade Route Status: {urllib.request.urlopen(req, timeout=5).status}")
+          except Exception as e: print(f"[WARN] Upgrade Testing: {e}")
+
+          # 기능 테스트 2: EAI 대용량 고속 스트리밍 파일 전송 및 체크섬 무결성 진단
+          try:
+              dummy_block = b"EAI_PIPELINE_TRANSACTION_INTEGRITY_BLOCK_TEST_DATA"
+              calculated_hash = hashlib.sha256(dummy_block).hexdigest()
+              
+              # Multipart Form-Data 규격 스트링 빌더 구성
+              boundary = '----WebKitFormBoundaryEaiReceiverTest'
+              body = []
+              body.append(f'--{boundary}'.encode('utf-8'))
+              body.append(f'Content-Disposition: form-data; name="file"; filename="EAI_DATA_BATCH.bin"'.encode('utf-8'))
+              body.append(b'Content-Type: application/octet-stream\r\n')
+              body.append(dummy_block)
+              body.append(f'\r\n--{boundary}--'.encode('utf-8'))
+              payload = b'\r\n'.join(body)
+              
+              req = urllib.request.Request("http://127.0.0.1:8030/api/v1/eai/receive", data=payload, method='POST')
+              req.add_header('Content-Type', f'multipart/form-data; boundary={boundary}')
+              req.add_header('x-eai-transaction-id', 'TX-EAI-JOB2-VERIFY')
+              req.add_header('x-expected-checksum', calculated_hash)
+              
+              print(f"[EAI Check] Inbound Interface Response Code: {urllib.request.urlopen(req, timeout=5).status}")
+          except Exception as e: print(f"[WARN] EAI Inbound System Testing: {e}")
           PYEOF
           
           .venv_ai_agent/bin/python generate_specs.py
           
-          echo "[Shutdown] 추출 마감에 따라 추적된 프로세스 자산을 순차 정밀 종료합니다."
-          kill $GW_PID $ANA_PID $FEN_PID $UPG_PID $CFG_PID $SEC_PID $MIG_PID || true
+          echo "[Shutdown] 통합 스펙 확인 완료에 따라 할당된 백그라운드 런타임 프로세스 리소스를 커널에서 안전하게 회수합니다."
+          kill $GW_PID $ANA_PID $FEN_PID $UPG_PID $CFG_PID $SEC_PID $MIG_PID $EAI_PID || true
 
       # -----------------------------------------------------------------------
-      # 9. OWASP 공급망 방어 종합 스캔 공정 (node_modules 커밋 방지 체계)
+      # 9. OWASP 공급망 방어 4단계 종합 고속 스캔 (node_modules 커밋 배제 로직)
       # -----------------------------------------------------------------------
       - name: OWASP 4-Step Supply Chain Security Scan
         shell: bash
         run: |
+          echo "[OWASP 공급망 방어] 1단계: cve-lite-cli를 활용한 초고속 Shift-Left 의존성 자산 점검..."
           cd generated/frontend
-          # node_modules 실제 설치를 우회하고 package-lock 명세만 고속 진단
           npm install --package-lock-only --ignore-scripts > /dev/null 2>&1 || true
           npx -y cve-lite-cli advisories sync 
           npx -y cve-lite-cli . --offline --json > ../security_reports/cve_lite_raw.json || true
           
+          # 의존성 모듈의 물리 유입을 원천 소거하여 Rebase 충돌 및 레포지토리 오염 제거
           rm -rf node_modules
           cd ../..
           
+          echo "[OWASP 공급망 방어] 2~4단계: CycloneDX SBOM 추출 및 dep-scan 교차 검증 엔지니어링 개시..."
           .venv_ai_agent/bin/pip install cyclonedx-bom appthreat-depscan
           .venv_ai_agent/bin/cyclonedx-py environment --outfile generated/security_reports/sbom.json || true
           .venv_ai_agent/bin/depscan --src . --reports-dir generated/security_reports/depscan || true
@@ -406,7 +472,7 @@ jobs:
         continue-on-error: true
 
       # -----------------------------------------------------------------------
-      # 10. [충돌 제어 핵심] 대량 휘발성 레포트 파일은 아티팩트로 전형 격리 업로드
+      # 10. [충돌 차단 핵심] 실시간 변화하는 휘발성 원시 리포트 데이터는 아티팩트로 안전 보관 격리
       # -----------------------------------------------------------------------
       - name: Upload Security Raw Reports as Actions Artifacts
         uses: actions/upload-artifact@v4
@@ -414,11 +480,12 @@ jobs:
           name: enterprise-security-raw-reports
           path: |
             generated/security_reports/cve_lite_raw.json
+            generated/security_reports/sbom.json
             generated/security_reports/depscan/
           retention-days: 7
 
       # -----------------------------------------------------------------------
-      # 11. [충돌 제어 핵심] Allow-list 방식 자산 선별 추가 및 3회 재시도 푸시 루프
+      # 11. [충돌 차단 핵심] Allow-list 방식 기반 마스터 인프라 자산 선별 추가 및 3회 재시도 푸시 제어 루프
       # -----------------------------------------------------------------------
       - name: Secure Allow-list Git Synchronization & Multiple Retry Push
         if: github.event_name != 'pull_request'
@@ -427,7 +494,10 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # [Allow-list] 매번 동적으로 흔들리지 않는 순수 아키텍처 인프라 코드 자산만 정밀 선별 추가
+          # [Allow-list] 런타임에 의해 유동적으로 변경되지 않는 고정식 영구 핵심 자산 명세만 선별 스테이징합니다.
+          git add requirements.txt || true
+          git add eai_receiver.py || true
+          git add .github/workflows/
           git add generated/server/
           git add generated/docker_cluster/
           git add generated/openapi/specs/
@@ -435,28 +505,28 @@ jobs:
           git add generated/security_reports/dependency-check-report.html || true
           
           if git diff-index --quiet HEAD; then
-            echo "[INFO] 인프라 마스터 자산에 핵심 변동사항이 없습니다. 푸시 공정을 안전하게 종료합니다."
+            echo "[INFO] 영구 마스터 인프라 자산에 변동 내역이 감지되지 않았습니다. 푸시 단계를 안전하게 통과합니다."
           else
-            git commit -m "chore: 마이크로서비스 영구 자산 선별 반영 및 중복 런타임 파일 추적 제외 완료 [skip ci]"
+            git commit -m "chore: EAI 스트리밍 모듈 및 마이크로서비스 영구 자산 선별 반영 (휘발성 자산 격리 완결) [skip ci]"
             
             CURRENT_BRANCH=${GITHUB_REF#refs/heads/}
             SUCCESS=false
             
-            # 레이스 컨디션 및 동시성 Rebase 충돌 발생 시 최대 3회 자동 복구/푸시 제어 루프
+            # 동시성 파이프라인 경쟁 상태(Race Condition)를 조율하기 위한 3회 자동 Rebase 백오프 루프
             for attempt in {1..3}; do
-              echo "[Git Push] 저장소 동기화 시도 중... (Attempt: $attempt/3)"
+              echo "[Git Sync] 원격 레포지토리 동기화 및 푸시 진행 중... (시도 횟수: $attempt/3)"
               git pull --rebase --autostash origin $CURRENT_BRANCH || { git rebase --abort || true; sleep 5; continue; }
               if git push origin HEAD; then
-                echo "[SUCCESS] 원격 저장소에 인프라 자산이 충돌 없이 완전하게 업데이트되었습니다."
+                echo "[SUCCESS] 원격 저장소에 대통합 인프라 형상 마스터 자산이 무충돌 구조로 완전하게 푸시되었습니다."
                 SUCCESS=true
                 break
               fi
-              echo "[WARN] 푸시 실패. 5초 후 재시도를 진행합니다."
+              echo "[WARN] 동시성 충돌로 인한 푸시 거부 발생. 5초 대기 후 동동 동기화를 재시도합니다."
               sleep 5
             done
             
             if [ "$SUCCESS" = false ]; then
-              echo "[FATAL] 3회 연속 동시성 Rebase 충돌 조율에 실패했습니다. 파이프라인 무결성을 보장하기 위해 빌드를 차단합니다."
+              echo "[FATAL] 3회 연속 자동 동기화 조율 공정에 실패했습니다. 형상 무결성을 지키기 위해 파이프라인을 비정상 차단합니다."
               exit 1
             fi
           fi
