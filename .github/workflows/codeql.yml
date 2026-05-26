@@ -1,4 +1,4 @@
-name: "Enterprise Django CI & Advanced Security Pipeline"
+name: "Enterprise Django CI & Advanced Security EAI Pipeline"
 
 on:
   push:
@@ -12,7 +12,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  # GitHub Actions 내부 러너의 Node 런타임 강제 동기화 지시문
   ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: "node24"
   NODE_OPTIONS: "--no-deprecation"
   PYTHONUTF8: "1"
@@ -23,6 +22,8 @@ permissions:
   contents: write
   actions: read
   security-events: write 
+  pull-requests: write
+  issues: write
 
 concurrency:
   group: enterprise-ci-${{ github.workflow }}-${{ github.ref }}
@@ -81,13 +82,9 @@ jobs:
       - name: Code Quality & Static Security Checks (Format Auto-Fix)
         if: steps.django_detect.outputs.has_django == 'true'
         run: |
-          echo "[Format] Running Black Code Formatter..."
           black . || true
-          echo "[Format] Running isort Import Sorter..."
           isort . || true
-          echo "[Lint] Running Flake8 Linter..."
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          echo "[Security] Running Bandit Code Scan..."
           bandit -r . -x tests/ -ll -ii || true
 
       - name: Django PostgreSQL DB Migrations & Deploy Checks
@@ -109,10 +106,10 @@ jobs:
           coverage report -m || true
 
   # =======================================================================
-  # [Job 2] Enterprise AI Pipeline (7-Node 인프라 및 결정론적 자산 제어)
+  # [Job 2] Enterprise AI, EAI Security Pipeline & Dependabot Auto-Config
   # =======================================================================
-  enterprise-ai-security:
-    name: "AI Agents & OWASP PostgreSQL Supply Chain Security"
+  enterprise-ai-eai-security:
+    name: "AI Agents, EAI Engine, OWASP & Dependabot Automation"
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -122,7 +119,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Setup Python, Java & Node.js Runtimes
+      - name: Setup Multi-Runtime Environments
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -135,328 +132,93 @@ jobs:
           node-version: '24'
 
       # -----------------------------------------------------------------------
-      # [CodeQL 선행 단계] 컴파일러 분석 전 소스 아키텍처 파일 물리 배치 완료
+      # [인프라 선행 배치] AI 노드, EAI 엔진 및 Dependabot 자동 구성 파일 생성
       # -----------------------------------------------------------------------
-      - name: Pre-Deploy Source Code Files for CodeQL Visibility
+      - name: Pre-Deploy Source Codes & Dependabot Configuration
         shell: bash
         run: |
           mkdir -p .venv_ai_agent/agent_core src/main/java generated/security_reports generated/frontend
+          mkdir -p .github/workflows
           
-          # [Java AI Agent] 인덱스 기반 결정론적 오프라인 Mock 생성 알고리즘 내장
-          cat << 'JAVAEOF' > src/main/java/MassiveClaudeAgent.java
-          import java.io.IOException;
-          import java.net.URI;
-          import java.net.http.HttpClient;
-          import java.net.http.HttpRequest;
-          import java.net.http.HttpResponse;
-          import java.nio.file.Files;
-          import java.nio.file.Path;
-          import java.nio.file.Paths;
-          import java.nio.file.StandardOpenOption;
-          import java.time.Duration;
-          import java.util.List;
-          import java.util.concurrent.*;
-          import java.util.stream.Collectors;
-          import java.util.stream.IntStream;
-
-          public class MassiveClaudeAgent {
-              private final String apiKey;
-              private final HttpClient httpClient;
-              private final ExecutorService executor = Executors.newFixedThreadPool(50);
-              private final Semaphore rateLimiter = new Semaphore(5);
-              private final boolean isMockMode;
-
-              public MassiveClaudeAgent() {
-                  String envKey = System.getenv("ANTHROPIC_API_KEY");
-                  if (envKey == null || envKey.isBlank() || "null".equalsIgnoreCase(envKey.trim())) {
-                      System.err.println("[WARN] API KEY 누락. 결정론적 오프라인 Mock 제너레이터로 전환합니다.");
-                      this.apiKey = null;
-                      this.isMockMode = true;
-                  } else {
-                      this.apiKey = envKey;
-                      this.isMockMode = false;
-                  }
-                  this.httpClient = HttpClient.newBuilder().executor(executor).connectTimeout(Duration.ofSeconds(15)).build();
-              }
-
-              public CompletableFuture<String> callClaudeApi(String prompt, int ruleIndex) {
-                  if (this.isMockMode) {
-                      return CompletableFuture.supplyAsync(() -> {
-                          try {
-                              rateLimiter.acquire();
-                              // 중복 실행 시 파일 변동 격차를 최소화하는 인덱스 기반 결정론적 데이터 설계
-                              int segmentA = (ruleIndex * 17) % 255;
-                              int segmentB = (ruleIndex * 31) % 255;
-                              String mockIp = "192.168." + segmentA + "." + segmentB;
-                              String action = (ruleIndex % 2 == 0) ? "ALLOW" : "DENY";
-                              
-                              return String.format("{\n  \"rule_id\": \"RULE-%d\",\n  \"target_ip\": \"%s\",\n  \"action\": \"%s\",\n  \"generated_by\": \"deterministic_offline_agent\"\n}", ruleIndex, mockIp, action);
-                          } catch (Exception e) {
-                              throw new CompletionException(e);
-                          } finally {
-                              rateLimiter.release();
-                          }
-                      }, executor);
-                  }
-                  
-                  String jsonPayload = String.format("{\"model\": \"claude-3-haiku-20240307\", \"max_tokens\": 150, \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}", prompt.replace("\"", "\\\""));
-                  HttpRequest request = HttpRequest.newBuilder().uri(URI.create("https://api.anthropic.com/v1/messages")).header("Content-Type", "application/json").header("x-api-key", this.apiKey).header("anthropic-version", "2023-06-01").POST(HttpRequest.BodyPublishers.ofString(jsonPayload)).build();
-                  return CompletableFuture.supplyAsync(() -> {
-                      try {
-                          rateLimiter.acquire();
-                          HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                          if (response.statusCode() == 429) { Thread.sleep(5000); }
-                          else if (response.statusCode() != 200) { throw new RuntimeException("HTTP " + response.statusCode()); }
-                          return response.body();
-                      } catch (Exception e) { throw new CompletionException(e); } finally { rateLimiter.release(); }
-                  }, executor);
-              }
-
-              public void generateMassResources(int totalCount, int batchSize) {
-                  // Rebase 충돌 억제를 위해 격리 공간(runtime 디렉토리)에 파일 적재
-                  Path outputDir = Paths.get("generated/runtime/ai_seed");
-                  try { Files.createDirectories(outputDir); } catch (IOException e) { throw new RuntimeException(e); }
-                  
-                  for (int batch = 0; batch < totalCount; batch += batchSize) {
-                      int currentBatchEnd = Math.min(batch + batchSize, totalCount);
-                      List<CompletableFuture<Void>> futures = IntStream.range(batch, currentBatchEnd).mapToObj(i -> callClaudeApi("Rule", i).thenAccept(result -> {
-                          try { Files.writeString(outputDir.resolve("rule_" + i + ".json"), result + "\n", StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING); } catch (IOException e) {}
-                      }).exceptionally(ex -> null)).collect(Collectors.toList());
-                      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-                  }
-                  executor.shutdown();
-              }
-
-              public static void main(String[] args) {
-                  new MassiveClaudeAgent().generateMassResources(500, 100);
-              }
-          }
-          JAVAEOF
-
-          # [Python Agent - 7 Node 고유 포트 바인딩 및 프로그레시브 롤링 업그레이드 스키마 구축]
-          cat > .venv_ai_agent/agent_core/ai_agent.py << 'PYEOF'
-          import os, json, textwrap
-          def run_agent():
-              dirs = ["generated/server/gateway", "generated/server/security", "generated/server/migration", 
-                      "generated/server/config", "generated/server/upgrade", "generated/server/fencing", 
-                      "generated/server/analytics", "generated/data/seed", "generated/data/postgres_seed", 
-                      "generated/data/migration_archive", "generated/docker_cluster", "generated/openapi"]
-              for d in dirs: os.makedirs(d, exist_ok=True)
-              
-              with open("generated/data/postgres_seed/init_massive_db.sql", "w", encoding="utf-8") as sql_file:
-                  sql_file.write("CREATE TABLE IF NOT EXISTS node_registry (node_id VARCHAR(50) PRIMARY KEY, status VARCHAR(20), zone VARCHAR(50));\n")
-                  sql_file.write("CREATE TABLE IF NOT EXISTS cluster_version_history (id SERIAL PRIMARY KEY, service_name VARCHAR(50), old_version VARCHAR(20), new_version VARCHAR(20), upgraded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);\n")
-                  for i in range(1, 101):
-                      sql_file.write(f"INSERT INTO node_registry (node_id, status, zone) VALUES ('NODE-{i:04d}', 'provisioned', 'ap-northeast-2') ON CONFLICT DO NOTHING;\n")
-
-              upg_code = textwrap.dedent("""\
-                  import uvicorn; from fastapi import FastAPI, HTTPException; from fastapi.middleware.cors import CORSMiddleware; from pydantic import BaseModel
-                  app = FastAPI(title='Enterprise Core Upgrade Engine', version='2.0.0')
-                  app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-                  current_cluster_versions = {"gateway": "2.0.0", "security": "2.0.0", "migration": "2.0.0", "config": "2.0.0", "upgrade": "2.0.0", "fencing": "2.0.0", "analytics": "2.0.0"}
-                  class UpgradePayload(BaseModel):
-                      service_name: str
-                      target_version: str
-                      force_update: bool = False
-                  @app.get('/health')
-                  def health(): return {'status': 'healthy', 'node': 'upgrade', 'port': 8060, 'registry': current_cluster_versions}
-                  @app.post('/api/v1/upgrade/apply')
-                  def apply_upgrade(payload: UpgradePayload):
-                      if payload.service_name not in current_cluster_versions: raise HTTPException(status_code=404, detail="Service node not found")
-                      old_v = current_cluster_versions[payload.service_name]
-                      current_cluster_versions[payload.service_name] = payload.target_version
-                      return {"status": "upgraded", "service": payload.service_name, "previous_version": old_v, "current_version": payload.target_version, "strategy": "Zero-Downtime Rolling Patch"}
-                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8060)
-              """)
-              with open("generated/server/upgrade/upgrade_main.py", "w", encoding="utf-8") as f: f.write(upg_code)
-
-              fen_code = textwrap.dedent("""\
-                  import uvicorn; from fastapi import FastAPI; from fastapi.middleware.cors import CORSMiddleware; from pydantic import BaseModel, Field
-                  app = FastAPI(title='Enterprise Fencing Service', version='2.0.0'); app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-                  class FenceRule(BaseModel): target_ip: str = Field(..., pattern=r'^([0-9]{1,3}\.){3}[0-9]{1,3}$'); action: str = Field(..., pattern=r'^(ALLOW|DENY)$')
-                  @app.get('/health')\ndef fencing_health(): return {'status': 'healthy', 'node': 'fencing', 'port': 8050, 'version': '2.0.0'}
-                  if __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port=8050)
-              """)
-              with open("generated/server/fencing/fencing_main.py", "w", encoding="utf-8") as f: f.write(fen_code)
-              
-              # 고유 포트 정렬 스펙 할당 (Errno 98 원천 해결 보장)
-              port_mapping = {'gateway': 8000, 'analytics': 8040, 'config': 8070, 'security': 8080, 'migration': 8090}
-              for svc, port in port_mapping.items():
-                  code = f"import uvicorn; from fastapi import FastAPI; from fastapi.middleware.cors import CORSMiddleware\napp = FastAPI(title='{svc.upper()} Node', version='2.0.0')\napp.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])\n@app.get('/health')\ndef h(): return {{'status':'healthy', 'service': '{svc}', 'port': {port}, 'version': '2.0.0'}}\nif __name__ == '__main__': uvicorn.run(app, host='0.0.0.0', port={port})\n"
-                  with open(f"generated/server/{svc}/{svc}_main.py", "w", encoding="utf-8") as f: f.write(code)
-
-              all_ports = {**port_mapping, 'upgrade': 8060, 'fencing': 8050}
-              compose_yaml = "version: '3.8'\nservices:\n  postgres_db:\n    image: postgres:15\n    environment:\n      POSTGRES_USER: admin\n      POSTGRES_PASSWORD: secure_password\n      POSTGRES_DB: enterprise_db\n    ports:\n      - \"5432:5432\"\n    volumes:\n      - ../data/postgres_seed:/docker-entrypoint-initdb.d\n"
-              for svc, p in all_ports.items():
-                  compose_yaml += f"  {svc}:\n    build: ../server/{svc}\n    ports:\n      - \"{p}:{p}\"\n    depends_on:\n      - postgres_db\n    restart: unless-stopped\n"
-                  with open(f"generated/server/{svc}/requirements.txt", "w") as req: req.write("fastapi==0.110.0\nuvicorn==0.27.1\npydantic==2.6.4\n")
-              with open("generated/docker_cluster/docker-compose.yml", "w") as dc: dc.write(compose_yaml)
-          if __name__ == "__main__": run_agent()
-          PYEOF
-
-          # [Frontend Package.json]
-          cat << 'EOF' > generated/frontend/package.json
-          { "name": "enterprise-frontend", "version": "1.0.0", "dependencies": { "cross-spawn": "5.1.0" } }
+          # ===================================================================
+          # 1. Dependabot 설정 파일 동적 프로비저닝 (의존성 패치 자동화)
+          # ===================================================================
+          cat << 'EOF' > .github/dependabot.yml
+          version: 2
+          updates:
+            - package-ecosystem: "github-actions"
+              directory: "/"
+              schedule:
+                interval: "weekly"
+                day: "monday"
+                time: "06:00"
+                timezone: "Asia/Seoul"
+              open-pull-requests-limit: 5
+              labels:
+                - "dependencies"
+                - "github-actions"
+                - "dependabot"
+              commit-message:
+                prefix: "deps"
+                include: "scope"
+              groups:
+                github-actions-minor-patch:
+                  patterns:
+                    - "*"
+                  update-types:
+                    - "minor"
+                    - "patch"
           EOF
 
-      # -----------------------------------------------------------------------
-      # 4. Initialize CodeQL (Java 및 Python 다중 자산 완벽 추적)
-      # -----------------------------------------------------------------------
-      - name: Initialize CodeQL Engine
-        uses: github/codeql-action/init@v3
-        with:
-          languages: java, python
-          queries: +security-extended,security-and-quality
+          cat << 'EOF' > .github/workflows/dependabot-auto-process.yml
+          name: Dependabot Auto Process
 
-      # -----------------------------------------------------------------------
-      # 5. Execute Traceable Java Compilation (CodeQL Tracer 빌드 컴파일 로깅)
-      # -----------------------------------------------------------------------
-      - name: Execute Traceable Java Compilation
-        run: javac -d bin src/main/java/MassiveClaudeAgent.java
+          on:
+            pull_request:
+              types:
+                - opened
+                - synchronize
+                - reopened
+                - ready_for_review
 
-      # -----------------------------------------------------------------------
-      # 6. Perform CodeQL Analysis
-      # -----------------------------------------------------------------------
-      - name: Perform CodeQL Deep Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/pipeline-monitored-scan"
-          upload: true
+          permissions:
+            contents: write
+            pull-requests: write
+            issues: write
 
-      # -----------------------------------------------------------------------
-      # 7. 대량 시드 데이터 생성 공정 기동
-      # -----------------------------------------------------------------------
-      - name: Run Mass Resource Generation AI Agents
-        run: |
-          python -m venv .venv_ai_agent
-          .venv_ai_agent/bin/pip install --upgrade pip urllib3 fastapi uvicorn httpx python-multipart pydantic
-          .venv_ai_agent/bin/python .venv_ai_agent/agent_core/ai_agent.py
-          java -cp bin MassiveClaudeAgent
+          concurrency:
+            group: dependabot-auto-${{ github.event.pull_request.number }}
+            cancel-in-progress: true
 
-      # -----------------------------------------------------------------------
-      # 8. 라이브 7-Cluster 배포 및 정밀 PID 타겟 종료 제어 (Polling)
-      # -----------------------------------------------------------------------
-      - name: Live 7-Cluster Deployment & Version Upgrade Simulation
-        shell: bash
-        run: |
-          echo "[Pipeline] 7대 독립 분산 노드를 기동하고 백그라운드 PID를 획득합니다."
-          .venv_ai_agent/bin/python generated/server/gateway/gateway_main.py & GW_PID=$!
-          .venv_ai_agent/bin/python generated/server/analytics/analytics_main.py & ANA_PID=$!
-          .venv_ai_agent/bin/python generated/server/fencing/fencing_main.py & FEN_PID=$!
-          .venv_ai_agent/bin/python generated/server/upgrade/upgrade_main.py & UPG_PID=$!
-          .venv_ai_agent/bin/python generated/server/config/config_main.py & CFG_PID=$!
-          .venv_ai_agent/bin/python generated/server/security/security_main.py & SEC_PID=$!
-          .venv_ai_agent/bin/python generated/server/migration/migration_main.py & MIG_PID=$!
-          
-          cat << 'PYEOF' > generate_specs.py
-          import urllib.request, json, os, time
-          ports = {'gateway': 8000, 'analytics': 8040, 'fencing': 8050, 'upgrade': 8060, 'config': 8070, 'security': 8080, 'migration': 8090}
-          os.makedirs('generated/openapi/specs', exist_ok=True)
-          
-          for name, port in ports.items():
-              for _ in range(15):
-                  try:
-                      req = urllib.request.urlopen(f"http://127.0.0.1:{port}/openapi.json", timeout=2)
-                      with open(f"generated/openapi/specs/{name}_openapi.json", "w", encoding="utf-8") as f:
-                          json.dump(json.loads(req.read()), f, indent=2, ensure_ascii=False)
-                      break
-                  except Exception: time.sleep(1)
-                  
-          try:
-              upgrade_url = "http://127.0.0.1:8060/api/v1/upgrade/apply"
-              payload = json.dumps({"service_name": "gateway", "target_version": "2.1.5", "force_update": True}).encode('utf-8')
-              req = urllib.request.Request(upgrade_url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
-              response = urllib.request.urlopen(req, timeout=5)
-              print(f"[SUCCESS] Version Upgrade Function Handled: {response.status}")
-          except Exception as e:
-              print(f"[WARN] Upgrade Engine Verification: {e}")
-          PYEOF
-          
-          .venv_ai_agent/bin/python generate_specs.py
-          
-          echo "[Shutdown] 추출 마감에 따라 추적된 프로세스 자산을 순차 정밀 종료합니다."
-          kill $GW_PID $ANA_PID $FEN_PID $UPG_PID $CFG_PID $SEC_PID $MIG_PID || true
-
-      # -----------------------------------------------------------------------
-      # 9. OWASP 공급망 방어 종합 스캔 공정 (node_modules 커밋 방지 체계)
-      # -----------------------------------------------------------------------
-      - name: OWASP 4-Step Supply Chain Security Scan
-        shell: bash
-        run: |
-          cd generated/frontend
-          # node_modules 실제 설치를 우회하고 package-lock 명세만 고속 진단
-          npm install --package-lock-only --ignore-scripts > /dev/null 2>&1 || true
-          npx -y cve-lite-cli advisories sync 
-          npx -y cve-lite-cli . --offline --json > ../security_reports/cve_lite_raw.json || true
-          
-          rm -rf node_modules
-          cd ../..
-          
-          .venv_ai_agent/bin/pip install cyclonedx-bom appthreat-depscan
-          .venv_ai_agent/bin/cyclonedx-py environment --outfile generated/security_reports/sbom.json || true
-          .venv_ai_agent/bin/depscan --src . --reports-dir generated/security_reports/depscan || true
-
-      - name: OWASP Dependency-Check HTML Scan
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: 'Enterprise-Multi-Node'
-          path: '.'
-          format: 'HTML'
-          out: 'generated/security_reports'
-        continue-on-error: true
-
-      # -----------------------------------------------------------------------
-      # 10. [충돌 제어 핵심] 대량 휘발성 레포트 파일은 아티팩트로 전형 격리 업로드
-      # -----------------------------------------------------------------------
-      - name: Upload Security Raw Reports as Actions Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: enterprise-security-raw-reports
-          path: |
-            generated/security_reports/cve_lite_raw.json
-            generated/security_reports/depscan/
-          retention-days: 7
-
-      # -----------------------------------------------------------------------
-      # 11. [충돌 제어 핵심] Allow-list 방식 자산 선별 추가 및 3회 재시도 푸시 루프
-      # -----------------------------------------------------------------------
-      - name: Secure Allow-list Git Synchronization & Multiple Retry Push
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          # [Allow-list] 매번 동적으로 흔들리지 않는 순수 아키텍처 인프라 코드 자산만 정밀 선별 추가
-          git add generated/server/
-          git add generated/docker_cluster/
-          git add generated/openapi/specs/
-          git add generated/data/postgres_seed/
-          git add generated/security_reports/dependency-check-report.html || true
-          
-          if git diff-index --quiet HEAD; then
-            echo "[INFO] 인프라 마스터 자산에 핵심 변동사항이 없습니다. 푸시 공정을 안전하게 종료합니다."
-          else
-            git commit -m "chore: 마이크로서비스 영구 자산 선별 반영 및 중복 런타임 파일 추적 제외 완료 [skip ci]"
-            
-            CURRENT_BRANCH=${GITHUB_REF#refs/heads/}
-            SUCCESS=false
-            
-            # 레이스 컨디션 및 동시성 Rebase 충돌 발생 시 최대 3회 자동 복구/푸시 제어 루프
-            for attempt in {1..3}; do
-              echo "[Git Push] 저장소 동기화 시도 중... (Attempt: $attempt/3)"
-              git pull --rebase --autostash origin $CURRENT_BRANCH || { git rebase --abort || true; sleep 5; continue; }
-              if git push origin HEAD; then
-                echo "[SUCCESS] 원격 저장소에 인프라 자산이 충돌 없이 완전하게 업데이트되었습니다."
-                SUCCESS=true
-                break
-              fi
-              echo "[WARN] 푸시 실패. 5초 후 재시도를 진행합니다."
-              sleep 5
-            done
-            
-            if [ "$SUCCESS" = false ]; then
-              echo "[FATAL] 3회 연속 동시성 Rebase 충돌 조율에 실패했습니다. 파이프라인 무결성을 보장하기 위해 빌드를 차단합니다."
-              exit 1
-            fi
-          fi
+          jobs:
+            dependabot-auto-process:
+              name: Label, approve, and auto-merge safe Dependabot PRs
+              runs-on: ubuntu-latest
+              if: >-
+                github.event.pull_request.user.login == 'dependabot[bot]' &&
+                github.event.pull_request.draft == false
+              steps:
+                - name: Fetch Dependabot metadata
+                  id: metadata
+                  uses: dependabot/fetch-metadata@v2.4.0
+                  with:
+                    github-token: "${{ secrets.GITHUB_TOKEN }}"
+                - name: Echo Dependabot metadata
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    echo "dependency-names=${{ steps.metadata.outputs.dependency-names }}"
+                    echo "update-type=${{ steps.metadata.outputs.update-type }}"
+                - name: Ensure labels exist
+                  shell: bash
+                  env:
+                    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  run: |
+                    set -euo pipefail
+                    gh label create "dependencies" --description "Dependency update PR" --color "0366d6" || true
+                    gh label create "dependabot" --description "Created by Dependabot" --color "7057ff" || true
+                    gh label create "safe-patch" --description "Patch-level dependency update" --color "0e8a16" || true
+                    gh label create "review-minor" --description "Minor dependency update" --color "fbca04" || true
+                    gh label create "manual-review-major" --description "Major dependency update" --color "d73a4a" || true
+                - name: Add common labels
+                  shell: bash
