@@ -255,7 +255,7 @@ jobs:
           EOF
 
       - name: Initialize CodeQL Engine
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: java, python
           queries: +security-extended,security-and-quality
@@ -264,7 +264,7 @@ jobs:
         run: javac -d bin src/main/java/MassiveClaudeAgent.java
 
       - name: Perform CodeQL Deep Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/pipeline-monitored-scan"
           upload: true
