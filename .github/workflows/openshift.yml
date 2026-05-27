@@ -1,4 +1,4 @@
-name: Grand Ops Universe Pipeline
+name: Grand Ops Universe - GitOps Pipeline
 
 on:
   push:
@@ -8,65 +8,48 @@ on:
 env:
   IMAGE_NAME: grand-ops-universe
   IMAGE_TAG: ${{ github.sha }}
-  # GitHub Repository Owner를 소문자로 변환하여 레지스트리 경로로 사용합니다.
   REGISTRY_NAMESPACE: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-  build-and-deploy:
+  build-and-gitops-sync:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # 코드를 저장소에 다시 커밋하기 위한 쓰기 권한
       packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🛠️ 1. 대규모 인프라 및 애플리케이션 자동 생성
+      - name: 🛠️ 1. Core API & 인프라 매니페스트 생성
         run: |
-          echo "엔터프라이즈급 API 서버 및 OpenShift 전체 리소스를 생성합니다..."
+          echo "서버 코드와 GitOps 배포용 매니페스트를 생성합니다..."
           mkdir -p app deploy/openshift
           
-          # [1] FastAPI: 보안 및 대규모 트래픽 처리용 구조
+          # [1] Core API 서버 코드
           cat << 'EOF' > app/main.py
-          from fastapi import FastAPI, HTTPException, Header, Depends
-          from pydantic import BaseModel
+          from fastapi import FastAPI
           import os, datetime
           
-          app = FastAPI(title="Grand Ops Universe Core API", version="2.0.0")
-          
-          # ConfigMap과 Secret에서 환경 변수 로드
-          APP_ENV = os.getenv("APP_ENV", "production")
-          DB_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
-          
-          class SysReq(BaseModel): target: str
+          app = FastAPI(title="Grand Ops Master-Universe Core API", version="3.0.0-GitOps")
           
           @app.get("/health/ready")
           def health_ready(): 
-              return {"status": "ready", "env": APP_ENV, "time": datetime.datetime.utcnow().isoformat()}
-              
-          @app.post("/ops/sync")
-          def sync_operations(req: SysReq):
-              # 대규모 인프라 동기화 시뮬레이션
-              os.makedirs("/app/data/sync", exist_ok=True)
-              with open(f"/app/data/sync/{req.target}.log", "w") as f:
-                  f.write(f"Synced at {datetime.datetime.utcnow()}")
-              return {"msg": f"Target '{req.target}' synchronization initiated."}
+              return {"status": "ready", "architecture": "GitOps-Pull-Model", "time": datetime.datetime.utcnow().isoformat()}
           EOF
           
-          # [2] 의존성 설정
+          # [2] 의존성
           cat << 'EOF' > requirements.txt
           fastapi==0.104.1
           uvicorn==0.24.0
           pydantic==2.5.2
           EOF
           
-          # [3] DevSecOps 기반 보안 Dockerfile
+          # [3] DevSecOps 기반 Dockerfile
           cat << 'EOF' > Dockerfile
           FROM python:3.11-slim
           WORKDIR /app
-          # Non-root 사용자 권한 및 디렉토리 설정
           RUN groupadd -r grandops && useradd -r -g grandops opsadmin \
-              && mkdir -p /app/tmp /app/data && chown -R opsadmin:grandops /app
+              && mkdir -p /app/tmp && chown -R opsadmin:grandops /app
           COPY requirements.txt .
           RUN pip install --no-cache-dir -r requirements.txt
           COPY ./app ./app
@@ -75,38 +58,13 @@ jobs:
           CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
           EOF
           
-          # [4] OpenShift 대규모 배포 매니페스트 (ConfigMap, Secret, PVC, HPA, NetworkPolicy 포함)
+          # [4] GitOps 배포용 통합 매니페스트 (이미지 태그는 다음 단계에서 동적으로 주입됨)
           cat << 'EOF' > deploy/openshift/manifests.yaml
-          ---
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: grand-ops-config
-          data:
-            APP_ENV: "production"
-          ---
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: grand-ops-secret
-          type: Opaque
-          stringData:
-            DATABASE_URL: "postgresql://user:pass@db-server:5432/grandops" # 실제 환경에 맞게 수정
-          ---
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: grand-ops-pvc
-          spec:
-            accessModes: [ "ReadWriteOnce" ]
-            resources:
-              requests:
-                storage: 5Gi
-          ---
           apiVersion: apps/v1
           kind: Deployment
           metadata:
             name: grand-ops-universe
+            labels: { app: grand-ops }
           spec:
             replicas: 2
             selector:
@@ -115,45 +73,14 @@ jobs:
               metadata:
                 labels: { app: grand-ops }
               spec:
-                securityContext: # 보안 강화를 위한 Pod 수준 컨텍스트
+                securityContext:
                   runAsNonRoot: true
                 containers:
-                - name: app
+                - name: core-app
                   image: IMAGE_PLACEHOLDER
                   ports: [{ containerPort: 8080 }]
-                  envFrom:
-                  - configMapRef: { name: grand-ops-config }
-                  - secretRef: { name: grand-ops-secret }
-                  volumeMounts:
-                  - mountPath: "/app/data"
-                    name: app-data
-                  resources:
-                    requests: { cpu: "100m", memory: "256Mi" }
-                    limits: { cpu: "500m", memory: "512Mi" }
                   readinessProbe:
                     httpGet: { path: /health/ready, port: 8080 }
-                    initialDelaySeconds: 5
-                volumes:
-                - name: app-data
-                  persistentVolumeClaim:
-                    claimName: grand-ops-pvc
-          ---
-          apiVersion: autoscaling/v2
-          kind: HorizontalPodAutoscaler
-          metadata:
-            name: grand-ops-hpa
-          spec:
-            scaleTargetRef:
-              apiVersion: apps/v1
-              kind: Deployment
-              name: grand-ops-universe
-            minReplicas: 2
-            maxReplicas: 10
-            metrics:
-            - type: Resource
-              resource:
-                name: cpu
-                target: { type: Utilization, averageUtilization: 70 }
           ---
           apiVersion: v1
           kind: Service
@@ -168,26 +95,9 @@ jobs:
           metadata:
             name: grand-ops-route
           spec:
-            to:
-              kind: Service
-              name: grand-ops-service
-            port:
-              targetPort: 8080
-            tls:
-              termination: edge # HTTPS 자동 적용
-          ---
-          apiVersion: networking.k8s.io/v1
-          kind: NetworkPolicy
-          metadata:
-            name: grand-ops-deny-all-except-router
-          spec:
-            podSelector:
-              matchLabels: { app: grand-ops }
-            policyTypes: [ "Ingress" ]
-            ingress:
-            - from:
-              - namespaceSelector:
-                  matchLabels: { network.openshift.io/policy-group: ingress }
+            to: { kind: Service, name: grand-ops-service }
+            port: { targetPort: 8080 }
+            tls: { termination: edge }
           EOF
 
       - name: 🐳 2. GHCR 로그인
@@ -204,38 +114,37 @@ jobs:
           tags: ${{ env.IMAGE_TAG }} latest
           containerfiles: ./Dockerfile
 
-      - name: 🚀 4. GHCR에 이미지 푸시 (에러 수정 완료)
+      - name: 🚀 4. GHCR에 컨테이너 이미지 푸시
         uses: redhat-actions/push-to-registry@v2
         with:
-          # image와 registry 파라미터를 명확히 분리했습니다.
           image: ${{ env.IMAGE_NAME }}
           tags: ${{ env.IMAGE_TAG }} latest
           registry: ${{ env.REGISTRY_NAMESPACE }}
 
-      - name: 🔧 5. OpenShift CLI (oc) 설치
-        uses: redhat-actions/openshift-tools-installer@v1
-        with:
-          oc: 4
-
-      - name: 🔐 6. OpenShift 클러스터 로그인
-        uses: redhat-actions/oc-login@v1
-        with:
-          openshift_server_url: ${{ secrets.OPENSHIFT_SERVER }}
-          openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
-          insecure_skip_tls_verify: true
-          # namespace: ${{ secrets.OPENSHIFT_NAMESPACE }}
-
-      - name: ☸️ 7. 초대형 인프라 OpenShift 자동 배포
+      - name: 🔄 5. GitOps 매니페스트 이미지 태그 동기화
         run: |
           FULL_IMAGE="${{ env.REGISTRY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          echo "배포할 이미지: $FULL_IMAGE"
+          echo "새로운 이미지 태그 주입: $FULL_IMAGE"
           
-          # IMAGE_PLACEHOLDER를 실제 GHCR 이미지 주소로 치환
+          # 생성된 매니페스트의 IMAGE_PLACEHOLDER를 실제 이미지 경로로 치환
           sed -i "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" deploy/openshift/manifests.yaml
           
-          echo "전체 리소스(ConfigMap, Secret, PVC, Deployment, HPA, Service, Route, NetworkPolicy)를 배포합니다..."
-          oc apply -f deploy/openshift/manifests.yaml
+          # GitOps 동기화를 위해 별도의 디렉토리로 이동
+          mkdir -p gitops-manifests
+          cp deploy/openshift/manifests.yaml gitops-manifests/grand-ops-deploy.yaml
+
+      - name: 📝 6. GitOps Repository 업데이트 (OpenShift 인증 불필요)
+        run: |
+          # GitHub Actions 봇 권한으로 현재 저장소에 YAML 파일 자동 커밋
+          git config --global user.name "GitHub Actions GitOps Bot"
+          git config --global user.email "actions@github.com"
           
-          echo "배포 리소스 상태 대기 중..."
-          oc rollout status deployment/grand-ops-universe
-          oc get all -l app=grand-ops
+          git add gitops-manifests/grand-ops-deploy.yaml
+          
+          # 변경사항이 있을 경우에만 커밋 및 푸시
+          if git diff-index --quiet HEAD; then
+            echo "변경사항이 없습니다."
+          else
+            git commit -m "chore(gitops): update image tag to ${{ env.IMAGE_TAG }}"
+            git push origin main
+          fi
