@@ -1,38 +1,62 @@
+---
+# AUTH SERVER RESOURCES
 apiVersion: apps/v1
 kind: Deployment
-metadata:
-  name: grand-ops-universe
-  labels: { app: grand-ops }
+metadata: { name: grand-ops-auth }
 spec:
-  replicas: 2
-  selector:
-    matchLabels: { app: grand-ops }
+  replicas: 1
+  selector: { matchLabels: { app: auth-server } }
   template:
-    metadata:
-      labels: { app: grand-ops }
+    metadata: { labels: { app: auth-server } }
     spec:
-      securityContext:
-        runAsNonRoot: true
       containers:
-      - name: core-app
-        image: ghcr.io/koreatest12/grand-ops-universe:45f9bed369ec0531631a674a52b5a23fc88fb167
+      - name: auth
+        image: ghcr.io/koreatest12/grand-ops-auth:5f6c05dd37acfe73fc84bd99b30ea644daf1f2e1
         ports: [{ containerPort: 8080 }]
-        readinessProbe:
-          httpGet: { path: /health/ready, port: 8080 }
+        readinessProbe: { httpGet: { path: /health/ready, port: 8080 } }
 ---
 apiVersion: v1
 kind: Service
-metadata:
-  name: grand-ops-service
+metadata: { name: auth-service }
 spec:
-  selector: { app: grand-ops }
+  selector: { app: auth-server }
   ports: [{ port: 80, targetPort: 8080 }]
 ---
 apiVersion: route.openshift.io/v1
 kind: Route
-metadata:
-  name: grand-ops-route
+metadata: { name: auth-route }
 spec:
-  to: { kind: Service, name: grand-ops-service }
+  to: { kind: Service, name: auth-service }
+  port: { targetPort: 8080 }
+  tls: { termination: edge }
+---
+# CORE SERVER RESOURCES
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: grand-ops-core }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: core-server } }
+  template:
+    metadata: { labels: { app: core-server } }
+    spec:
+      containers:
+      - name: core
+        image: ghcr.io/koreatest12/grand-ops-core:5f6c05dd37acfe73fc84bd99b30ea644daf1f2e1
+        ports: [{ containerPort: 8080 }]
+        readinessProbe: { httpGet: { path: /health/ready, port: 8080 } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: core-service }
+spec:
+  selector: { app: core-server }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata: { name: core-route }
+spec:
+  to: { kind: Service, name: core-service }
   port: { targetPort: 8080 }
   tls: { termination: edge }
