@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grand-ops-universe
+  labels: { app: grand-ops }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: grand-ops }
+  template:
+    metadata:
+      labels: { app: grand-ops }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: core-app
+        image: ghcr.io/koreatest12/grand-ops-universe:45f9bed369ec0531631a674a52b5a23fc88fb167
+        ports: [{ containerPort: 8080 }]
+        readinessProbe:
+          httpGet: { path: /health/ready, port: 8080 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grand-ops-service
+spec:
+  selector: { app: grand-ops }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grand-ops-route
+spec:
+  to: { kind: Service, name: grand-ops-service }
+  port: { targetPort: 8080 }
+  tls: { termination: edge }
